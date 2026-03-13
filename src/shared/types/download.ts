@@ -93,7 +93,8 @@ export interface Preset {
 }
 
 export interface AppConfig {
-  outputDirectory: string
+  outputDirectoryVideo: string
+  outputDirectoryAudio: string
   concurrentDownloads: number // 1-5
   // Subtitles defaults
   downloadSubtitles: boolean
@@ -109,7 +110,17 @@ export interface AppConfig {
   customArgs: string
   // Appearance
   language: 'en' | 'ru'
-  theme: 'dark' | 'light' | 'system'
+  theme: 
+    | 'deep-space' 
+    | 'light' 
+    | 'midnight-purple' 
+    | 'crimson-wave' 
+    | 'arctic-steel' 
+    | 'sunset-amber' 
+    | 'graphite-pro' 
+    | 'sakura-rain' 
+    | 'forest-terminal' 
+    | 'system'
   // Presets
   presets: Preset[]
   // Last used
@@ -140,7 +151,8 @@ export const DEFAULT_PRESETS: Preset[] = [
 ]
 
 export const DEFAULT_CONFIG: AppConfig = {
-  outputDirectory: '',
+  outputDirectoryVideo: '',
+  outputDirectoryAudio: '',
   concurrentDownloads: 2,
   downloadSubtitles: false,
   embedSubtitles: false,

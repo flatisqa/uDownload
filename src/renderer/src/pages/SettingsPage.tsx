@@ -41,11 +41,6 @@ export default function SettingsPage() {
     })
   }, [])
 
-  const handleFolderPick = async () => {
-    const res = await window.api.openFolderDialog()
-    if (res.success && res.data) updateSettings({ outputDirectory: res.data })
-  }
-
   const handleUpdate = async () => {
     setIsUpdating(true)
     setUpdateMsg('')
@@ -105,12 +100,19 @@ export default function SettingsPage() {
               className="input"
               value={settings.theme}
               onChange={(e) =>
-                updateSettings({ theme: e.target.value as 'dark' | 'light' | 'system' })
+                updateSettings({ theme: e.target.value as any })
               }
             >
-              <option value="dark">{t('themeDark')}</option>
-              <option value="light">{t('themeLight')}</option>
               <option value="system">{t('themeSystem')}</option>
+              <option value="deep-space">{t('themeDeepSpace')}</option>
+              <option value="midnight-purple">{t('themeMidnightPurple')}</option>
+              <option value="crimson-wave">{t('themeCrimsonWave')}</option>
+              <option value="arctic-steel">{t('themeArcticSteel')}</option>
+              <option value="sunset-amber">{t('themeSunsetAmber')}</option>
+              <option value="graphite-pro">{t('themeGraphitePro')}</option>
+              <option value="sakura-rain">{t('themeSakuraRain')}</option>
+              <option value="forest-terminal">{t('themeForestTerminal')}</option>
+              <option value="light">{t('themeLight')}</option>
             </select>
           </div>
         </div>
@@ -122,27 +124,69 @@ export default function SettingsPage() {
           {t('downloadSec')}
         </p>
 
-        <div style={{ marginBottom: 14 }}>
-          <label
-            style={{
-              color: 'var(--text-secondary)',
-              fontSize: 11,
-              display: 'block',
-              marginBottom: 6
-            }}
-          >
-            {t('saveFolder')}
-          </label>
-          <div className="flex gap-8">
-            <input
-              className="input flex-1"
-              readOnly
-              value={settings.outputDirectory || '~/Downloads'}
-              placeholder="~/Downloads"
-            />
-            <button className="btn btn-ghost" onClick={handleFolderPick}>
-              {t('browse')}
-            </button>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 48, marginBottom: 14 }}>
+          <div style={{ minWidth: 0 }}>
+            <label
+              style={{
+                color: 'var(--text-secondary)',
+                fontSize: 11,
+                display: 'block',
+                marginBottom: 8
+              }}
+            >
+              {t('saveFolderVideo')}
+            </label>
+            <div className="flex gap-8">
+              <input
+                className="input flex-1"
+                style={{ minWidth: 0 }}
+                readOnly
+                value={settings.outputDirectoryVideo || '~/Downloads'}
+                placeholder="~/Downloads"
+              />
+              <button
+                className="btn btn-ghost"
+                style={{ flexShrink: 0 }}
+                onClick={async () => {
+                  const res = await window.api.openFolderDialog()
+                  if (res.success && res.data) updateSettings({ outputDirectoryVideo: res.data })
+                }}
+              >
+                {t('browse')}
+              </button>
+            </div>
+          </div>
+
+          <div style={{ minWidth: 0 }}>
+            <label
+              style={{
+                color: 'var(--text-secondary)',
+                fontSize: 11,
+                display: 'block',
+                marginBottom: 8
+              }}
+            >
+              {t('saveFolderAudio')}
+            </label>
+            <div className="flex gap-8">
+              <input
+                className="input flex-1"
+                style={{ minWidth: 0 }}
+                readOnly
+                value={settings.outputDirectoryAudio || '~/Downloads'}
+                placeholder="~/Downloads"
+              />
+              <button
+                className="btn btn-ghost"
+                style={{ flexShrink: 0 }}
+                onClick={async () => {
+                  const res = await window.api.openFolderDialog()
+                  if (res.success && res.data) updateSettings({ outputDirectoryAudio: res.data })
+                }}
+              >
+                {t('browse')}
+              </button>
+            </div>
           </div>
         </div>
 

@@ -5,6 +5,7 @@ import * as fs from 'fs'
 import { EventEmitter } from 'events'
 import { getYtdlpBin, getFfmpegBin } from './BinaryManager'
 import { buildYtdlpArgs } from './MetadataService'
+import Store from 'electron-store'
 import type { DownloadJob, DownloadOptions } from '@shared/types/download'
 
 // [download]  45.3% of 128.30MiB at 5.20MiB/s ETA 00:12
@@ -20,10 +21,12 @@ type ProcessEntry = {
 export class DownloadQueueManager extends EventEmitter {
   private queue: DownloadJob[] = []
   private active: Map<string, ProcessEntry> = new Map()
+  private store: Store
   private concurrency: number
 
   constructor(concurrency = 2) {
     super()
+    this.store = new (Store as any)()
     this.concurrency = concurrency
   }
 
@@ -82,10 +85,19 @@ export class DownloadQueueManager extends EventEmitter {
   }
 
   private startJob(job: DownloadJob) {
+    const config = this.store.get('config') as any
+    let outputPath = job.options.outputPath
+
+    if (!outputPath) {
+      if (job.options.format === 'audio') {
+        outputPath = config?.outputDirectoryAudio || path.join(os.homedir(), 'Music')
+      } else {
+        outputPath = config?.outputDirectoryVideo || path.join(os.homedir(), 'Videos')
+      }
+    }
+
     const ytdlp = getYtdlpBin()
     const ffmpeg = getFfmpegBin()
-
-    const outputPath = job.options.outputPath || path.join(os.homedir(), 'Downloads')
     
     // Ensure directory exists
     try {
@@ -224,7 +236,12 @@ export class DownloadQueueManager extends EventEmitter {
     proc.on('close', (code) => {
       this.active.delete(job.id)
       if (code === 0) {
-        this.emit('completed', { id: job.id, status: 'done', progress: 100 })
+        this.emit('completed', { 
+          id: job.id, 
+          status: 'done', 
+          progress: 100,
+          outputPath: job.outputPath
+        })
       } else if (code !== null) {
         const errorDetail = lastStderrLines.join('').trim() || `yt-dlp exited with code ${code}`
         this.emit('error', {

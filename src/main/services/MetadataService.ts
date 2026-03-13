@@ -1,5 +1,7 @@
 import { execFile } from 'child_process'
 import { promisify } from 'util'
+import * as path from 'path'
+import * as os from 'os'
 import { getYtdlpBin } from './BinaryManager'
 import type { VideoMetadata, ChapterInfo, PlaylistItem } from '@shared/types/download'
 
@@ -136,8 +138,17 @@ export function buildYtdlpArgs(options: {
     args.push('--ffmpeg-location', options.ffmpegBin)
   }
 
-  // Output template
-  args.push('-o', options.outputTemplate)
+  // Output template handling
+  let outputPath = options.outputPath
+  if (!outputPath) {
+    if (options.format === 'audio') {
+      outputPath = path.join(os.homedir(), 'Music')
+    } else {
+      outputPath = path.join(os.homedir(), 'Videos')
+    }
+  }
+  const outputTemplate = path.join(outputPath, '%(title)s.%(ext)s')
+  args.push('-o', outputTemplate)
 
   // Format selection
   if (options.format === 'audio') {

@@ -26,12 +26,12 @@ function App(): React.ReactNode {
     const root = document.documentElement
     if (settings.theme === 'system') {
       const isDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-      root.setAttribute('data-theme', isDark ? 'dark' : 'light')
+      root.setAttribute('data-theme', isDark ? 'deep-space' : 'light')
 
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
       const handler = (e: MediaQueryListEvent) => {
         if (useStore.getState().settings.theme === 'system') {
-          root.setAttribute('data-theme', e.matches ? 'dark' : 'light')
+          root.setAttribute('data-theme', e.matches ? 'deep-space' : 'light')
         }
       }
       mediaQuery.addEventListener('change', handler)
