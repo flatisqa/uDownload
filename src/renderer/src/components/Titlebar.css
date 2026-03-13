@@ -1,0 +1,120 @@
+.titlebar {
+  height: 38px;
+  width: 100%;
+  background: var(--bg-main);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  user-select: none;
+  position: relative;
+  z-index: 9999;
+}
+
+.titlebar-drag-region {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 120px; /* Оставляем место для кнопок справа без drag */
+  bottom: 0;
+  -webkit-app-region: drag;
+}
+
+.titlebar-content {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  pointer-events: none; /* Чтобы клики проходили сквозь контейнер на фон / drag region */
+}
+
+.titlebar-logo {
+  padding-left: 16px;
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+}
+
+.titlebar-controls {
+  display: flex;
+  height: 100%;
+  pointer-events: auto; /* Возвращаем кликабельность кнопкам */
+  -webkit-app-region: no-drag; /* Кнопки нельзя перетаскивать */
+}
+
+.titlebar-btn {
+  width: 46px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.titlebar-btn:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--text-primary);
+}
+
+.titlebar-btn.close-btn:hover {
+  background: var(--status-error);
+  color: white;
+}
+
+/* Навигация (Tabs) в заголовке */
+.titlebar-nav {
+  display: flex;
+  height: 100%;
+  gap: 16px;
+  pointer-events: auto; /* Возвращаем кликабельность кнопкам навигации */
+  -webkit-app-region: no-drag;
+}
+
+.titlebar-nav-item {
+  position: relative;
+  background: transparent;
+  border: none;
+  height: 100%;
+  padding: 0 10px; /* небольшие внутренние отступы для текста */
+  display: flex;
+  align-items: center;
+  font-family: var(--font-display, 'Syne', sans-serif);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-smooth);
+}
+
+.titlebar-nav-item:hover {
+  color: var(--text-primary);
+}
+
+/* Линия-подчеркивание для активного таба */
+.titlebar-nav-item::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: transparent;
+  border-radius: 2px 2px 0 0;
+  transition:
+    background-color var(--dur-fast) var(--ease-smooth),
+    box-shadow var(--dur-fast) var(--ease-smooth);
+}
+
+.titlebar-nav-item.active {
+  color: var(--text-primary);
+}
+
+.titlebar-nav-item.active::after {
+  background-color: var(--accent);
+  box-shadow: 0 -2px 10px rgba(110, 231, 183, 0.4);
+}
