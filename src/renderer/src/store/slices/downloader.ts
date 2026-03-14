@@ -21,6 +21,11 @@ export interface DownloaderSlice {
   selectedChapters: string[]
   timeFrom: string
   timeTo: string
+  customTitle: string
+  customThumbnail: string
+  customArtist: string
+  customYear: string
+  customDescription: string
 
   // Actions
   setUrl: (url: string) => void
@@ -34,6 +39,11 @@ export interface DownloaderSlice {
   setSelectedChapters: (chapters: string[]) => void
   setTimeFrom: (t: string) => void
   setTimeTo: (t: string) => void
+  setCustomTitle: (title: string) => void
+  setCustomThumbnail: (path: string) => void
+  setCustomArtist: (artist: string) => void
+  setCustomYear: (year: string) => void
+  setCustomDescription: (desc: string) => void
   resetDownloader: () => void
 }
 
@@ -49,6 +59,11 @@ export const createDownloaderSlice: StateCreator<DownloaderSlice> = (set) => ({
   selectedChapters: [],
   timeFrom: '',
   timeTo: '',
+  customTitle: '',
+  customThumbnail: '',
+  customArtist: '',
+  customYear: '',
+  customDescription: '',
 
   setUrl: (url) => set({ url }),
   setStep: (step) => set({ step }),
@@ -61,6 +76,11 @@ export const createDownloaderSlice: StateCreator<DownloaderSlice> = (set) => ({
   setSelectedChapters: (selectedChapters) => set({ selectedChapters }),
   setTimeFrom: (timeFrom) => set({ timeFrom }),
   setTimeTo: (timeTo) => set({ timeTo }),
+  setCustomTitle: (customTitle) => set({ customTitle }),
+  setCustomThumbnail: (customThumbnail) => set({ customThumbnail }),
+  setCustomArtist: (customArtist) => set({ customArtist }),
+  setCustomYear: (customYear) => set({ customYear }),
+  setCustomDescription: (customDescription) => set({ customDescription }),
   
   resetDownloader: () => set({
     url: '',
@@ -70,7 +90,12 @@ export const createDownloaderSlice: StateCreator<DownloaderSlice> = (set) => ({
     selectedPlaylistItems: [],
     selectedChapters: [],
     timeFrom: '',
-    timeTo: ''
+    timeTo: '',
+    customTitle: '',
+    customThumbnail: '',
+    customArtist: '',
+    customYear: '',
+    customDescription: ''
     // Intentionally keep format/quality preferences intact
   })
 })

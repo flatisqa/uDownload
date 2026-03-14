@@ -42,6 +42,8 @@ export interface VideoMetadata {
   playlistItems?: PlaylistItem[]
   chapters?: ChapterInfo[]
   availableFormats: string[]
+  description?: string
+  uploadDate?: string
 }
 
 export interface DownloadOptions {
@@ -68,6 +70,11 @@ export interface DownloadOptions {
   timeTo?: string // HH:MM:SS
   // Advanced
   customArgs?: string
+  customTitle?: string
+  customThumbnail?: string // local path to image file
+  customArtist?: string
+  customYear?: string
+  customDescription?: string
 }
 
 export interface DownloadJob {
@@ -81,6 +88,7 @@ export interface DownloadJob {
   eta?: string // e.g. "00:23"
   size?: string // e.g. "128.3 MiB"
   outputPath?: string
+  finalFilePath?: string
   error?: string
   createdAt: number
 }

@@ -34,6 +34,8 @@ interface RawYtdlpInfo {
   entries?: RawEntry[]
   chapters?: RawChapter[]
   formats?: Array<{ ext: string; vcodec?: string; acodec?: string }>
+  description?: string
+  upload_date?: string
 }
 
 export async function fetchMetadata(
@@ -104,7 +106,9 @@ export async function fetchMetadata(
     isPlaylist,
     playlistItems,
     chapters,
-    availableFormats: Array.from(formatsSet)
+    availableFormats: Array.from(formatsSet),
+    description: first.description,
+    uploadDate: first.upload_date
   }
 }
 
@@ -127,6 +131,11 @@ export function buildYtdlpArgs(options: {
   timeTo?: string
   customArgs?: string
   ffmpegBin: string
+  customTitle?: string
+  customThumbnail?: string
+  customArtist?: string
+  customYear?: string
+  customDescription?: string
 }): string[] {
   const args: string[] = []
 
@@ -147,7 +156,10 @@ export function buildYtdlpArgs(options: {
       outputPath = path.join(os.homedir(), 'Videos')
     }
   }
-  const outputTemplate = path.join(outputPath, '%(title)s.%(ext)s')
+
+  // Use custom title for file name if provided, otherwise yt-dlp title
+  const titleTemplate = options.customTitle ? options.customTitle.replace(/[\\/:*?"<>|]/g, '_') : '%(title)s'
+  const outputTemplate = path.join(outputPath, `${titleTemplate}.%(ext)s`)
   args.push('-o', outputTemplate)
 
   // Format selection
@@ -184,7 +196,36 @@ export function buildYtdlpArgs(options: {
   }
 
   // Metadata / Thumbnail
-  if (options.embedThumbnail) args.push('--embed-thumbnail')
+  if (options.customThumbnail) {
+    // If custom thumbnail is provided, we use it
+    args.push('--thumbnail-output', options.customThumbnail)
+    args.push('--embed-thumbnail')
+  } else if (options.embedThumbnail) {
+    args.push('--embed-thumbnail')
+  }
+
+  // We use a hybrid strategy:
+  // 1. --replace-in-metadata for raw text fields (handles () signs better than regex)
+  // 2. --parse-metadata for date fields (avoids "unconverted data" error in some yt-dlp versions)
+  if (options.customTitle) {
+    args.push('--replace-in-metadata', 'title', '.*', options.customTitle)
+  }
+  if (options.customArtist) {
+    args.push('--replace-in-metadata', 'artist', '.*', options.customArtist)
+    args.push('--replace-in-metadata', 'uploader', '.*', options.customArtist)
+    args.push('--replace-in-metadata', 'creator', '.*', options.customArtist)
+  }
+  if (options.customYear) {
+    const yearStr = options.customYear.trim()
+    const paddedYear = /^\d{4}$/.test(yearStr) ? `${yearStr}0101` : yearStr
+    args.push('--parse-metadata', `:(?P<upload_date>${paddedYear})`)
+    args.push('--parse-metadata', `:(?P<date>${paddedYear})`)
+  }
+  if (options.customDescription) {
+    args.push('--replace-in-metadata', 'description', '.*', options.customDescription)
+    args.push('--replace-in-metadata', 'comment', '.*', options.customDescription)
+  }
+
   if (options.embedMetadata) args.push('--embed-metadata')
   if (options.cookiesFromBrowser) args.push('--cookies-from-browser', options.cookiesFromBrowser)
 

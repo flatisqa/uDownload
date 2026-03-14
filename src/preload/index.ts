@@ -33,6 +33,7 @@ const api = {
 
   // Folder picker
   openFolderDialog: () => ipcRenderer.invoke('dialog:openFolder'),
+  openImageDialog: () => ipcRenderer.invoke('dialog:openImage'),
 
   // Event listeners (main → renderer push events)
   onDownloadProgress: (callback: (data: object) => void) => {

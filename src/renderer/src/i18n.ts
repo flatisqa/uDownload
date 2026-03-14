@@ -10,9 +10,11 @@ export const translations = {
     // Downloader Page
     urlPlaceholder: 'Paste YouTube / VK / TikTok link...',
     fetchBtn: 'Fetch',
+    configClear: 'Clear',
     waitingPlaceholder: 'Paste link to grab track or video',
     analyzingLink: 'Analyzing link...',
     analyzingDesc: 'Fetching video metadata',
+    settingsBtn: 'Select browser in Settings',
 
     // Config Panel
     configFormat: 'FORMAT',
@@ -36,6 +38,10 @@ export const translations = {
     timeFrom: 'FROM (HH:MM:SS)',
     timeTo: 'TO (HH:MM:SS)',
     timeHelper: 'Leave empty to download full video. Ignored if chapters are selected.',
+    editMetadataBtn: 'Edit Metadata',
+    metaArtist: 'Artist',
+    metaYear: 'Year',
+    metaDescription: 'Description / Comment',
 
     // Download BTN
     downloadBtn: '⬇ Download',
@@ -58,7 +64,7 @@ export const translations = {
     statusFetching: 'Fetching...',
     statusPending: 'Pending',
     statusDownloading: 'Downloading',
-    statusConverting: 'Converting',
+    statusConverting: 'Processing...',
     statusDone: 'Done',
     statusError: 'Error',
     statusCancelled: 'Cancelled',
@@ -133,9 +139,11 @@ export const translations = {
     // Downloader Page
     urlPlaceholder: 'Вставьте ссылку YouTube / VK / TikTok...',
     fetchBtn: 'Найти',
+    configClear: 'Очистить',
     waitingPlaceholder: 'Вставьте ссылку для загрузки аудио или видео',
     analyzingLink: 'Анализ ссылки...',
     analyzingDesc: 'Получаем метаданные видео',
+    settingsBtn: 'Выбрать браузер в Настройках',
 
     // Config Panel
     configFormat: 'ФОРМАТ',
@@ -159,6 +167,10 @@ export const translations = {
     timeFrom: 'ОТ (ЧЧ:ММ:СС)',
     timeTo: 'ДО (ЧЧ:ММ:СС)',
     timeHelper: 'Оставьте пустым для скачивания всего видео. Игнорируется, если выбраны чаптеры.',
+    editMetadataBtn: 'Изменить метаданные',
+    metaArtist: 'Исполнитель',
+    metaYear: 'Год',
+    metaDescription: 'Описание / Комментарий',
 
     // Download BTN
     downloadBtn: '⬇ Скачать',
@@ -181,7 +193,7 @@ export const translations = {
     statusFetching: 'Получение...',
     statusPending: 'В очереди',
     statusDownloading: 'Скачивание',
-    statusConverting: 'Конвертация',
+    statusConverting: 'Обработки...',
     statusDone: 'Готово',
     statusError: 'Ошибка',
     statusCancelled: 'Отменено',

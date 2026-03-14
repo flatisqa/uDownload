@@ -485,7 +485,7 @@ export default function SettingsPage() {
                 }}
               >
                 <div>
-                  <span style={{ marginRight: 8 }}>{preset.emoji}</span>
+                  <span style={{ marginRight: 8, fontSize: 18 }}>{preset.emoji}</span>
                   <span style={{ fontSize: 13, fontWeight: 500 }}>{preset.name}</span>
                   <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 4 }}>
                     {preset.options.format} • Audio: {preset.options.audioQuality} • Video:{' '}

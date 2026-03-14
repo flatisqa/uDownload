@@ -3,10 +3,11 @@ import DownloaderPage from './pages/DownloaderPage'
 import QueuePage from './pages/QueuePage'
 import SettingsPage from './pages/SettingsPage'
 import Titlebar from './components/Titlebar'
+import MetadataEditorPage from './pages/MetadataEditorPage'
 import { useStore } from './store'
 import { useTranslation } from './i18n'
 
-type Page = 'downloader' | 'queue' | 'settings'
+type Page = 'downloader' | 'queue' | 'settings' | 'edit-metadata'
 
 function App(): React.ReactNode {
   const [page, setPage] = useState<Page>('downloader')
@@ -71,17 +72,19 @@ function App(): React.ReactNode {
 
   return (
     <div className="app-layout">
-      <Titlebar page={page} setPage={setPage} />
+      {page !== 'edit-metadata' && <Titlebar page={page} setPage={setPage} />}
       <div className="main-flex">
         <main className="main-content">
           {page === 'downloader' && (
             <DownloaderPage
               onGoToSettings={() => setPage('settings')}
               onGoToQueue={() => setPage('queue')}
+              onGoToMetaEditor={() => setPage('edit-metadata')}
             />
           )}
           {page === 'queue' && <QueuePage />}
           {page === 'settings' && <SettingsPage />}
+          {page === 'edit-metadata' && <MetadataEditorPage onBack={() => setPage('downloader')} />}
         </main>
       </div>
 

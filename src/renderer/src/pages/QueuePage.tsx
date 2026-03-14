@@ -51,7 +51,9 @@ function JobCard({ job }: { job: DownloadJob }) {
   }
 
   const handleOpenFolder = () => {
-    if (job.outputPath) {
+    if (job.finalFilePath) {
+      window.api.showInFolder(job.finalFilePath)
+    } else if (job.outputPath) {
       window.api.showInFolder(job.outputPath)
     }
   }

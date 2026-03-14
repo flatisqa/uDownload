@@ -12,9 +12,10 @@ import { useTranslation } from '../i18n'
 interface DownloaderPageProps {
   onGoToSettings?: () => void
   onGoToQueue?: () => void
+  onGoToMetaEditor?: () => void
 }
 
-export default function DownloaderPage({ onGoToSettings, onGoToQueue }: DownloaderPageProps) {
+export default function DownloaderPage({ onGoToSettings, onGoToQueue, onGoToMetaEditor }: DownloaderPageProps) {
   // Global downloader state
   const url = useStore((s) => s.url)
   const setUrl = useStore((s) => s.setUrl)
@@ -48,7 +49,17 @@ export default function DownloaderPage({ onGoToSettings, onGoToQueue }: Download
   
   const timeTo = useStore((s) => s.timeTo)
   const setTimeTo = useStore((s) => s.setTimeTo)
-  
+
+  const customTitle = useStore((s) => s.customTitle)
+  const setCustomTitle = useStore((s) => s.setCustomTitle)
+  const customThumbnail = useStore((s) => s.customThumbnail)
+  const customArtist = useStore((s) => s.customArtist)
+  const setCustomArtist = useStore((s) => s.setCustomArtist)
+  const customYear = useStore((s) => s.customYear)
+  const setCustomYear = useStore((s) => s.setCustomYear)
+  const customDescription = useStore((s) => s.customDescription)
+  const setCustomDescription = useStore((s) => s.setCustomDescription)
+
   const resetDownloader = useStore((s) => s.resetDownloader)
 
   const inputRef = useRef<HTMLInputElement>(null)
@@ -75,12 +86,16 @@ export default function DownloaderPage({ onGoToSettings, onGoToQueue }: Download
       const res = await window.api.fetchMetadata(urlToFetch.trim(), settings.cookiesFromBrowser)
       if (res.success && res.data) {
         setMeta(res.data)
+        setCustomTitle(res.data.title)
         setSelectedPlaylistItems(
           res.data.playlistItems ? res.data.playlistItems.map((i) => i.id) : []
         )
         setSelectedChapters([])
         setTimeFrom('')
         setTimeTo('')
+        setCustomArtist(res.data.author || '')
+        setCustomYear(res.data.uploadDate ? res.data.uploadDate.substring(0, 4) : '')
+        setCustomDescription(res.data.description || '')
         setStep('preview')
       } else {
         setError(res.error || 'Failed to fetch metadata')
@@ -98,7 +113,7 @@ export default function DownloaderPage({ onGoToSettings, onGoToQueue }: Download
       format,
       audioQuality,
       videoQuality,
-      outputPath: settings.outputDirectory,
+      outputPath: format === 'audio' ? settings.outputDirectoryAudio : settings.outputDirectoryVideo,
       downloadSubtitles: settings.downloadSubtitles,
       embedSubtitles: settings.embedSubtitles,
       subtitleLanguage: settings.subtitleLanguage,
@@ -113,7 +128,12 @@ export default function DownloaderPage({ onGoToSettings, onGoToQueue }: Download
       selectedChapters: selectedChapters.length > 0 ? selectedChapters : undefined,
       timeFrom: timeFrom.trim() || undefined,
       timeTo: timeTo.trim() || undefined,
-      customArgs: settings.customArgs
+      customArgs: settings.customArgs,
+      customTitle: customTitle.trim() || undefined,
+      customThumbnail: customThumbnail || undefined,
+      customArtist: customArtist.trim() || undefined,
+      customYear: customYear.trim() || undefined,
+      customDescription: customDescription.trim() || undefined
     }
     setStep('downloading')
     const res = await window.api.startDownload(meta.url, options)
@@ -121,7 +141,11 @@ export default function DownloaderPage({ onGoToSettings, onGoToQueue }: Download
       addJob({
         id: res.data,
         url: meta.url,
-        metadata: meta,
+        metadata: {
+          ...meta,
+          title: customTitle || meta.title,
+          thumbnail: customThumbnail || meta.thumbnail
+        },
         options,
         status: 'pending',
         progress: 0,
@@ -183,14 +207,14 @@ export default function DownloaderPage({ onGoToSettings, onGoToQueue }: Download
             disabled={!url && !meta}
             style={{ padding: '0 16px', fontSize: 13, gap: 6 }}
           >
-            ✕ Очистить
+            <span style={{ fontSize: 16 }}>✕</span> {t('configClear')}
           </button>
           <button
             className="btn btn-primary"
             onClick={() => handleFetch()}
             disabled={!url.trim() || step === 'fetching'}
           >
-            {step === 'fetching' ? '…' : `⚡ ${t('fetchBtn')}`}
+            {step === 'fetching' ? '…' : <><span style={{ fontSize: 18 }}>⚡</span> {t('fetchBtn')}</>}
           </button>
           {meta && step !== 'downloading' && (
             <button
@@ -198,7 +222,7 @@ export default function DownloaderPage({ onGoToSettings, onGoToQueue }: Download
               onClick={handleDownload}
               style={{ background: 'var(--accent)', color: '#08090d', fontWeight: 700 }}
             >
-              ⬇ {t('downloadBtn')}
+              <span style={{ fontSize: 18 }}>⬇</span> {t('downloadBtn')}
             </button>
           )}
         </div>
@@ -244,7 +268,7 @@ export default function DownloaderPage({ onGoToSettings, onGoToQueue }: Download
                 }}
                 onClick={() => onGoToSettings && onGoToSettings()}
               >
-                ⚙️ Выбрать браузер в Настройках
+                <span style={{ fontSize: 16 }}>⚙️</span> {t('settingsBtn') || 'Выбрать браузер в Настройках'}
               </button>
             </div>
           ) : (
@@ -310,24 +334,65 @@ export default function DownloaderPage({ onGoToSettings, onGoToQueue }: Download
 
       {/* Video Preview Card */}
       {step === 'preview' && meta && (
-        <>
-          <div className="glass-panel" style={{ padding: 20 }}>
+        <div className="flex flex-col gap-24">
+          <div 
+            className="glass-panel" 
+            style={{ 
+              padding: 20, 
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              border: '1px solid rgba(255,255,255,0.05)'
+            }}
+            onClick={() => onGoToMetaEditor?.()}
+          >
             <div className="flex gap-16">
-              {meta.thumbnail && (
-                <img
-                  src={meta.thumbnail}
-                  alt={meta.title}
-                  style={{
-                    width: 140,
-                    height: 90,
-                    objectFit: 'cover',
-                    borderRadius: 8,
-                    flexShrink: 0
-                  }}
-                />
+              {(customThumbnail || meta.thumbnail) && (
+                <div style={{ position: 'relative' }}>
+                  <img
+                    src={customThumbnail ? `file://${customThumbnail}` : meta.thumbnail}
+                    alt={meta.title}
+                    style={{
+                      width: 140,
+                      height: 90,
+                      objectFit: 'cover',
+                      borderRadius: 8,
+                      flexShrink: 0
+                    }}
+                  />
+                  <div style={{
+                    position: 'absolute',
+                    top: 4,
+                    right: 4,
+                    background: 'rgba(0,0,0,0.6)',
+                    padding: '2px 6px',
+                    borderRadius: 4,
+                    fontSize: 8,
+                    color: 'white',
+                    backdropFilter: 'blur(4px)'
+                  }}>
+                    ✎ EDIT
+                  </div>
+                </div>
               )}
               <div className="flex flex-col gap-8 flex-1" style={{ minWidth: 0 }}>
-                <h2 className="heading-lg truncate">{meta.title}</h2>
+                <div className="flex items-start justify-between gap-8">
+                  <h2 className="heading-lg truncate flex-1">{customTitle || meta.title}</h2>
+                  <button 
+                    className="btn btn-ghost" 
+                    style={{ 
+                      padding: '4px 10px', 
+                      fontSize: 11, 
+                      height: 'auto',
+                      background: 'rgba(255,255,255,0.03)'
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onGoToMetaEditor?.();
+                    }}
+                  >
+                    <span style={{ fontSize: 14 }}>✎</span> {t('editMetadataBtn')}
+                  </button>
+                </div>
                 <p style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{meta.author}</p>
                 <div className="flex gap-8 items-center" style={{ marginTop: 4 }}>
                   {meta.duration > 0 && (
@@ -339,7 +404,7 @@ export default function DownloaderPage({ onGoToSettings, onGoToQueue }: Download
                     </span>
                   )}
                   {(meta.chapters?.length ?? 0) > 0 && (
-                    <span className="badge badge-convert">{meta.chapters!.length} chapters</span>
+                    <span className="badge badge-convert">{meta.chapters?.length} chapters</span>
                   )}
                 </div>
               </div>
@@ -624,7 +689,7 @@ export default function DownloaderPage({ onGoToSettings, onGoToQueue }: Download
               </p>
             </div>
           )}
-        </>
+        </div>
       )}
 
       {/* Empty state */}

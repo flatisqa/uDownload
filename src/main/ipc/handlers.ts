@@ -116,6 +116,7 @@ export function registerIpcHandlers(mainWindow: BrowserWindow) {
   })
 
   // ─── Dialog ────────────────────────────────────────────────────────────────
+  // Folder picker
   ipcMain.handle('dialog:openFolder', async () => {
     try {
       const result = await dialog.showOpenDialog(mainWindow, {
@@ -132,6 +133,19 @@ export function registerIpcHandlers(mainWindow: BrowserWindow) {
     try {
       shell.showItemInFolder(filePath)
       return { success: true }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  ipcMain.handle('dialog:openImage', async () => {
+    try {
+      const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: [{ name: 'Images', extensions: ['jpg', 'png', 'jpeg', 'webp'] }]
+      })
+      if (result.canceled) return { success: false }
+      return { success: true, data: result.filePaths[0] }
     } catch (error) {
       return { success: false, error: String(error) }
     }

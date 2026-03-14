@@ -16,6 +16,7 @@ type ProcessEntry = {
   process: ChildProcess
   options: DownloadOptions
   destinations: string[]
+  speedHistory: number[]
 }
 
 export class DownloadQueueManager extends EventEmitter {
@@ -132,19 +133,24 @@ export class DownloadQueueManager extends EventEmitter {
       timeFrom: job.options.timeFrom,
       timeTo: job.options.timeTo,
       customArgs: job.options.customArgs,
-      ffmpegBin: ffmpeg
+      ffmpegBin: ffmpeg,
+      customTitle: job.options.customTitle,
+      customThumbnail: job.options.customThumbnail,
+      customArtist: job.options.customArtist,
+      customYear: job.options.customYear,
+      customDescription: job.options.customDescription
     })
 
     // Add URL and continue partial downloads
     args.push('--continue', job.url)
 
-    console.log('[DownloadQueueManager] Starting yt-dlp with args:', args.join(' '))
+    console.log('[DownloadQueueManager] Executing yt-dlp with args:', args.join(' '))
 
     this.emit('progress', { id: job.id, status: 'downloading', progress: 0 })
 
     const proc = spawn(ytdlp, args)
     const destinations: string[] = []
-    this.active.set(job.id, { process: proc, options: job.options, destinations })
+    this.active.set(job.id, { process: proc, options: job.options, destinations, speedHistory: [] })
 
     const lastStderrLines: string[] = []
 
@@ -163,13 +169,16 @@ export class DownloadQueueManager extends EventEmitter {
         const mergeMatch = /\[Merger\] Merging formats into "(.*)"/.exec(trimmed)
         if (mergeMatch) { destinations.push(mergeMatch[1].trim()); continue }
 
-        // Conversion phase detection (yt-dlp stdout messages)
         if (
           trimmed.includes('[ExtractAudio]') ||
           trimmed.includes('[ffmpeg]') ||
-          trimmed.includes('Merging')
+          trimmed.includes('Merging') ||
+          trimmed.includes('[Metadata]') ||
+          trimmed.includes('[Thumbnails]') ||
+          trimmed.includes('[EmbedSubtitle]') ||
+          trimmed.includes('[Fixup]')
         ) {
-          this.emit('progress', { id: job.id, status: 'converting', progress: 99 })
+          this.emit('progress', { id: job.id, status: 'converting', progress: 99.9 })
           continue
         }
 
@@ -178,8 +187,21 @@ export class DownloadQueueManager extends EventEmitter {
         if (match) {
           const progress = parseFloat(match[1])
           const size = match[2].trim()
-          const speed = match[3].trim()
+          let speed = match[3].trim()
           const eta = match[4].trim()
+
+          // Speed smoothing
+          const entry = this.active.get(job.id)
+          if (entry) {
+            const currentSpeedBytes = this.parseSpeed(speed)
+            if (currentSpeedBytes > 0) {
+              entry.speedHistory.push(currentSpeedBytes)
+              if (entry.speedHistory.length > 10) entry.speedHistory.shift()
+              const avgSpeedBytes = entry.speedHistory.reduce((a, b) => a + b, 0) / entry.speedHistory.length
+              speed = `~${this.formatSpeed(avgSpeedBytes)}`
+            }
+          }
+
           this.emit('progress', { id: job.id, status: 'downloading', progress, size, speed, eta })
         }
       }
@@ -196,9 +218,13 @@ export class DownloadQueueManager extends EventEmitter {
         // ffmpeg conversion progress in stderr — detect and emit converting status
         if (
           trimmed.includes('[ExtractAudio]') ||
-          trimmed.includes('[ffmpeg]')
+          trimmed.includes('[ffmpeg]') ||
+          trimmed.includes('[Metadata]') ||
+          trimmed.includes('[Thumbnails]') ||
+          trimmed.includes('[EmbedSubtitle]') ||
+          trimmed.includes('[Fixup]')
         ) {
-          this.emit('progress', { id: job.id, status: 'converting', progress: 99 })
+          this.emit('progress', { id: job.id, status: 'converting', progress: 99.9 })
           continue
         }
 
@@ -234,13 +260,19 @@ export class DownloadQueueManager extends EventEmitter {
     })
 
     proc.on('close', (code) => {
+      const entry = this.active.get(job.id)
+      const finalFilePath = entry && entry.destinations.length > 0 
+        ? entry.destinations[entry.destinations.length - 1] 
+        : undefined
+
       this.active.delete(job.id)
       if (code === 0) {
         this.emit('completed', { 
           id: job.id, 
           status: 'done', 
           progress: 100,
-          outputPath: job.outputPath
+          outputPath: job.outputPath,
+          finalFilePath: finalFilePath
         })
       } else if (code !== null) {
         const errorDetail = lastStderrLines.join('').trim() || `yt-dlp exited with code ${code}`
@@ -258,6 +290,24 @@ export class DownloadQueueManager extends EventEmitter {
       this.emit('error', { id: job.id, status: 'error', error: err.message })
       this.tick()
     })
+  }
+
+  private parseSpeed(speedStr: string): number {
+    const match = /([\d.]+)\s*([a-zA-Z/]+)/.exec(speedStr)
+    if (!match) return 0
+    const val = parseFloat(match[1])
+    const unit = match[2].toLowerCase()
+    if (unit.includes('gib')) return val * 1024 * 1024 * 1024
+    if (unit.includes('mib')) return val * 1024 * 1024
+    if (unit.includes('kib')) return val * 1024
+    return val
+  }
+
+  private formatSpeed(bytesPerSec: number): string {
+    if (bytesPerSec >= 1024 * 1024 * 1024) return (bytesPerSec / (1024 * 1024 * 1024)).toFixed(2) + 'GiB/s'
+    if (bytesPerSec >= 1024 * 1024) return (bytesPerSec / (1024 * 1024)).toFixed(2) + 'MiB/s'
+    if (bytesPerSec >= 1024) return (bytesPerSec / 1024).toFixed(1) + 'KiB/s'
+    return bytesPerSec.toFixed(0) + 'B/s'
   }
 }
 
