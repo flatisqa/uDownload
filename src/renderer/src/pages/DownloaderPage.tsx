@@ -181,17 +181,24 @@ export default function DownloaderPage({
     if (chapterMode === 'selected' && selectedChapters.length > 0 && !meta.isPlaylist) {
       for (const chapterKey of selectedChapters) {
         const chapterInfo = meta.chapters?.find((c) => `${c.startTime}-${c.endTime}` === chapterKey)
+        const chapterIndex = meta.chapters?.findIndex((c) => `${c.startTime}-${c.endTime}` === chapterKey) ?? -1
+        
         const chapterDuration = chapterInfo
           ? chapterInfo.endTime - chapterInfo.startTime
           : undefined
 
+        // Add numerical prefix to chapter title for sorting, e.g. "001 - Chapter Title"
+        const prefix = chapterIndex >= 0 ? `${String(chapterIndex + 1).padStart(3, '0')} - ` : ''
+        const chapterRawTitle = chapterInfo?.title || chapterKey
+        const numberedChapterTitle = `${prefix}${chapterRawTitle}`
+
         // Use full title for UI list, but short title for filename if in subfolder
         const displayTitle = chapterInfo
-          ? `${customTitle || meta.title} - ${chapterInfo.title}`
+          ? `${customTitle || meta.title} - ${numberedChapterTitle}`
           : customTitle || meta.title
 
         // If saving to album folder (multi or existing folder), use short chapter title for filename
-        const chapterTitle = useAlbumFolder ? chapterInfo?.title || chapterKey : displayTitle
+        const chapterTitle = useAlbumFolder ? numberedChapterTitle : displayTitle
 
         const chapterOptions: DownloadOptions = {
           ...baseOptions,
