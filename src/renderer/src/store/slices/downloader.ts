@@ -1,10 +1,5 @@
 import { StateCreator } from 'zustand'
-import type {
-  VideoMetadata,
-  MediaFormat,
-  AudioQuality,
-  VideoQuality
-} from '@shared/types/download'
+import type { VideoMetadata, MediaFormat, AudioQuality, VideoQuality } from '@shared/types/download'
 
 export type DownloadStep = 'idle' | 'fetching' | 'preview' | 'downloading'
 
@@ -21,6 +16,7 @@ export interface DownloaderSlice {
   selectedChapters: string[]
   timeFrom: string
   timeTo: string
+  chapterMode: 'single' | 'selected'
   customTitle: string
   customThumbnail: string
   customArtist: string
@@ -39,6 +35,7 @@ export interface DownloaderSlice {
   setSelectedChapters: (chapters: string[]) => void
   setTimeFrom: (t: string) => void
   setTimeTo: (t: string) => void
+  setChapterMode: (mode: 'single' | 'selected') => void
   setCustomTitle: (title: string) => void
   setCustomThumbnail: (path: string) => void
   setCustomArtist: (artist: string) => void
@@ -59,6 +56,7 @@ export const createDownloaderSlice: StateCreator<DownloaderSlice> = (set) => ({
   selectedChapters: [],
   timeFrom: '',
   timeTo: '',
+  chapterMode: 'single',
   customTitle: '',
   customThumbnail: '',
   customArtist: '',
@@ -74,6 +72,7 @@ export const createDownloaderSlice: StateCreator<DownloaderSlice> = (set) => ({
   setVideoQuality: (videoQuality) => set({ videoQuality }),
   setSelectedPlaylistItems: (selectedPlaylistItems) => set({ selectedPlaylistItems }),
   setSelectedChapters: (selectedChapters) => set({ selectedChapters }),
+  setChapterMode: (chapterMode) => set({ chapterMode }),
   setTimeFrom: (timeFrom) => set({ timeFrom }),
   setTimeTo: (timeTo) => set({ timeTo }),
   setCustomTitle: (customTitle) => set({ customTitle }),
@@ -81,21 +80,23 @@ export const createDownloaderSlice: StateCreator<DownloaderSlice> = (set) => ({
   setCustomArtist: (customArtist) => set({ customArtist }),
   setCustomYear: (customYear) => set({ customYear }),
   setCustomDescription: (customDescription) => set({ customDescription }),
-  
-  resetDownloader: () => set({
-    url: '',
-    step: 'idle',
-    meta: null,
-    error: '',
-    selectedPlaylistItems: [],
-    selectedChapters: [],
-    timeFrom: '',
-    timeTo: '',
-    customTitle: '',
-    customThumbnail: '',
-    customArtist: '',
-    customYear: '',
-    customDescription: ''
-    // Intentionally keep format/quality preferences intact
-  })
+
+  resetDownloader: () =>
+    set({
+      url: '',
+      step: 'idle',
+      meta: null,
+      error: '',
+      selectedPlaylistItems: [],
+      selectedChapters: [],
+      timeFrom: '',
+      timeTo: '',
+      chapterMode: 'single',
+      customTitle: '',
+      customThumbnail: '',
+      customArtist: '',
+      customYear: '',
+      customDescription: ''
+      // Intentionally keep format/quality preferences intact
+    })
 })

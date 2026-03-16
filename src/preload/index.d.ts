@@ -17,6 +17,11 @@ export interface IElectronAPI {
   setSettings: (settings: Partial<AppConfig>) => Promise<{ success: boolean }>
   toggleClipboard: (enabled: boolean) => Promise<{ success: boolean }>
   openFolderDialog: () => Promise<{ success: boolean; data?: string }>
+  openImageDialog: () => Promise<{ success: boolean; data?: string }>
+  showInFolder: (path: string) => Promise<void>
+  generateId: () => string
+  pathExists: (dirPath: string) => Promise<boolean>
+  sanitizeName: (name: string) => Promise<string>
   onDownloadProgress: (callback: (data: object) => void) => () => void
   onDownloadCompleted: (callback: (data: object) => void) => () => void
   onDownloadError: (callback: (data: object) => void) => () => void

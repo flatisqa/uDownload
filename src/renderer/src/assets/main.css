@@ -549,6 +549,20 @@ select.input {
   box-shadow: 0 0 10px rgba(110, 231, 183, 0.4);
 }
 
+.progress-bar.starting {
+  background: linear-gradient(
+    90deg,
+    var(--status-download) 0%,
+    var(--accent-dim) 50%,
+    var(--status-download) 100%
+  );
+  background-size: 200% 100%;
+  box-shadow: 0 0 12px var(--accent-dim);
+  animation: slide-convert 2s linear infinite;
+  width: 100% !important;
+  opacity: 0.7;
+}
+
 .progress-bar.converting {
   background: linear-gradient(
     90deg,

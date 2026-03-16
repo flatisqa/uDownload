@@ -1,6 +1,7 @@
 import { ipcMain, dialog, BrowserWindow, shell } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 import Store from 'electron-store'
+import fs from 'fs'
 
 import { fetchMetadata } from '../services/MetadataService'
 import { downloadQueue } from '../services/DownloadQueueManager'
@@ -151,6 +152,20 @@ export function registerIpcHandlers(mainWindow: BrowserWindow) {
     }
   })
 
+  // ─── Filesystem utilities ──────────────────────────────────────────────────
+  ipcMain.handle('fs:pathExists', (_e, dirPath: string) => {
+    try {
+      return fs.existsSync(dirPath)
+    } catch {
+      return false
+    }
+  })
+
+  ipcMain.handle('fs:sanitizeName', (_e, name: string) => {
+    // Replace characters not allowed in folder names
+    return name.replace(/[\\/:*?"<>|]/g, '_').trim()
+  })
+
   // ─── Window Management ─────────────────────────────────────────────────────
   ipcMain.on('window:minimize', () => {
     mainWindow.minimize()
@@ -181,6 +196,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow) {
 
   // ─── Forward clipboard events to renderer ─────────────────────────────────
   clipboardWatcher.on('linkDetected', (url: string) => {
-    mainWindow.webContents.send('clipboard:linkDetected', url)
+    // Send to all windows to ensure it reaches the active one even after window recreations
+    BrowserWindow.getAllWindows().forEach((win) => {
+      if (!win.isDestroyed()) {
+        win.webContents.send('clipboard:linkDetected', url)
+      }
+    })
   })
 }

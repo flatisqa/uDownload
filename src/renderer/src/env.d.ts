@@ -38,6 +38,7 @@ interface Window {
     ) => Promise<{ success: boolean; error?: string }>
     toggleClipboard: (enabled: boolean) => Promise<{ success: boolean; error?: string }>
     openFolderDialog: () => Promise<{ success: boolean; data?: string; error?: string }>
+    openImageDialog: () => Promise<{ success: boolean; data?: string; error?: string }>
 
     // Events
     onDownloadProgress: (callback: (data: any) => void) => () => void
@@ -48,5 +49,7 @@ interface Window {
     // Utilities
     showInFolder: (path: string) => Promise<{ success: boolean; error?: string }>
     generateId: () => string
+    pathExists: (dirPath: string) => Promise<boolean>
+    sanitizeName: (name: string) => Promise<string>
   }
 }

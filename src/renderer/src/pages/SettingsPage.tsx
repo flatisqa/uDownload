@@ -99,9 +99,7 @@ export default function SettingsPage() {
             <select
               className="input"
               value={settings.theme}
-              onChange={(e) =>
-                updateSettings({ theme: e.target.value as any })
-              }
+              onChange={(e) => updateSettings({ theme: e.target.value as any })}
             >
               <option value="system">{t('themeSystem')}</option>
               <option value="deep-space">{t('themeDeepSpace')}</option>
@@ -124,7 +122,14 @@ export default function SettingsPage() {
           {t('downloadSec')}
         </p>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 48, marginBottom: 14 }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+            gap: 48,
+            marginBottom: 14
+          }}
+        >
           <div style={{ minWidth: 0 }}>
             <label
               style={{

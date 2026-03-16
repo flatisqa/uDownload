@@ -5,9 +5,9 @@ export class ClipboardWatcher extends EventEmitter {
   private lastText = ''
   private enabled = false
 
-  // URL patterns: YouTube, SoundCloud, Vimeo, Twitter, etc.
+  // URL patterns: YouTube (watch, shorts, live, music, playlist), SoundCloud, Vimeo, Twitter, TikTok, Instagram
   private static URL_RE =
-    /https?:\/\/(www\.)?(youtube\.com\/watch|youtu\.be\/|soundcloud\.com|vimeo\.com|twitter\.com|x\.com|twitch\.tv|reddit\.com\/r\/)[^\s"')>]*/
+    /https?:\/\/(www\.|music\.|m\.)?(youtube\.com\/(watch|shorts|live|playlist|v\/)|youtu\.be\/|soundcloud\.com|vimeo\.com|twitter\.com|x\.com|twitch\.tv|tiktok\.com|instagram\.com|reddit\.com\/r\/)[^\s"')>]*/
 
   start() {
     if (this.interval) return
@@ -16,12 +16,16 @@ export class ClipboardWatcher extends EventEmitter {
     this.interval = setInterval(() => {
       if (!this.enabled) return
       try {
-        const text = clipboard.readText()
+        const rawText = clipboard.readText()
+        if (!rawText) return
+
+        const text = rawText.trim()
         if (text && text !== this.lastText) {
           this.lastText = text
           const match = ClipboardWatcher.URL_RE.exec(text)
           if (match) {
-            this.emit('linkDetected', text.trim())
+            console.log('[ClipboardWatcher] Detected supported link:', text)
+            this.emit('linkDetected', text)
           }
         }
       } catch {

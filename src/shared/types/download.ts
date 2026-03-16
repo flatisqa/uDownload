@@ -2,17 +2,36 @@ export type DownloadStatus =
   | 'idle'
   | 'fetching_meta'
   | 'pending'
+  | 'starting'
   | 'downloading'
   | 'converting'
   | 'done'
   | 'error'
   | 'cancelled'
   | 'paused'
-
 export type MediaFormat = 'audio' | 'video' | 'audio+video'
 
-export type AudioQuality = 'best' | '320k' | '192k' | '128k'
-export type VideoQuality = 'best' | '4320p' | '2160p' | '1440p' | '1080p' | '720p' | '480p' | '360p'
+export type AudioQuality =
+  | 'best'
+  | 'flac'
+  | '320k'
+  | '256k'
+  | '192k'
+  | '128k'
+  | '96k'
+  | 'opus'
+  | 'aac'
+export type VideoQuality =
+  | 'best'
+  | '4320p'
+  | '2160p'
+  | '1440p'
+  | '1080p'
+  | '720p'
+  | '480p'
+  | '360p'
+  | '240p'
+  | '144p'
 
 export interface ChapterInfo {
   id: string
@@ -42,6 +61,7 @@ export interface VideoMetadata {
   playlistItems?: PlaylistItem[]
   chapters?: ChapterInfo[]
   availableFormats: string[]
+  originalAudioBitrate?: number // kbps
   description?: string
   uploadDate?: string
 }
@@ -59,8 +79,6 @@ export interface DownloadOptions {
   embedThumbnail: boolean
   embedMetadata: boolean
   cookiesFromBrowser?: string
-  // Chapters
-  splitByChapters: boolean
   selectedChapters?: string[]
   // Playlist
   playlistAll: boolean
@@ -75,6 +93,7 @@ export interface DownloadOptions {
   customArtist?: string
   customYear?: string
   customDescription?: string
+  expectedDuration?: number
 }
 
 export interface DownloadJob {
@@ -118,16 +137,16 @@ export interface AppConfig {
   customArgs: string
   // Appearance
   language: 'en' | 'ru'
-  theme: 
-    | 'deep-space' 
-    | 'light' 
-    | 'midnight-purple' 
-    | 'crimson-wave' 
-    | 'arctic-steel' 
-    | 'sunset-amber' 
-    | 'graphite-pro' 
-    | 'sakura-rain' 
-    | 'forest-terminal' 
+  theme:
+    | 'deep-space'
+    | 'light'
+    | 'midnight-purple'
+    | 'crimson-wave'
+    | 'arctic-steel'
+    | 'sunset-amber'
+    | 'graphite-pro'
+    | 'sakura-rain'
+    | 'forest-terminal'
     | 'system'
   // Presets
   presets: Preset[]
@@ -154,7 +173,7 @@ export const DEFAULT_PRESETS: Preset[] = [
     id: 'archive',
     name: 'Архив 4K',
     emoji: '📺',
-    options: { format: 'audio+video', videoQuality: '2160p', splitByChapters: false }
+    options: { format: 'audio+video', videoQuality: '2160p' }
   }
 ]
 

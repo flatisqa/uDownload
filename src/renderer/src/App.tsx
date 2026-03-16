@@ -5,17 +5,14 @@ import SettingsPage from './pages/SettingsPage'
 import Titlebar from './components/Titlebar'
 import MetadataEditorPage from './pages/MetadataEditorPage'
 import { useStore } from './store'
-import { useTranslation } from './i18n'
 
 type Page = 'downloader' | 'queue' | 'settings' | 'edit-metadata'
 
 function App(): React.ReactNode {
   const [page, setPage] = useState<Page>('downloader')
-  const [toast, setToast] = useState<{ visible: boolean; url: string }>({ visible: false, url: '' })
 
   const isLoaded = useStore((s) => s.isLoaded)
   const settings = useStore((s) => s.settings)
-  const t = useTranslation(settings.language)
 
   useEffect(() => {
     if (!useStore.getState().isLoaded) {
@@ -45,8 +42,12 @@ function App(): React.ReactNode {
 
   useEffect(() => {
     const unsub = window.api.onClipboardLink((detected) => {
-      setToast({ visible: true, url: detected })
-      setTimeout(() => setToast((t) => (t.url === detected ? { ...t, visible: false } : t)), 8000)
+      // Support instant auto-fetch by updating store
+      useStore.getState().setUrl(detected)
+      useStore.getState().setMeta(null)
+      useStore.getState().setStep('idle')
+      // Switch to downloader page if we are somewhere else
+      setPage('downloader')
     })
 
     // Download events
@@ -87,41 +88,6 @@ function App(): React.ReactNode {
           {page === 'edit-metadata' && <MetadataEditorPage onBack={() => setPage('downloader')} />}
         </main>
       </div>
-
-      {/* Global Toast for Clipboard Intercept */}
-      {toast.visible && (
-        <div
-          className="toast toast-enter"
-          style={{ position: 'fixed', bottom: 30, right: 30, zIndex: 999 }}
-        >
-          <div className="flex flex-col gap-6">
-            <span style={{ fontSize: 13, fontWeight: 500 }}>{t('detectedLink')}</span>
-            <span
-              className="truncate"
-              style={{ fontSize: 11, color: 'var(--text-muted)', maxWidth: 200 }}
-            >
-              {toast.url}
-            </span>
-          </div>
-          <button
-            className="btn btn-primary"
-            style={{ padding: '6px 14px', fontSize: 12 }}
-            onClick={() => {
-              setPage('downloader')
-              setToast({ visible: false, url: '' })
-            }}
-          >
-            {t('downloadNow')}
-          </button>
-          <button
-            className="btn btn-ghost"
-            style={{ padding: 6 }}
-            onClick={() => setToast({ visible: false, url: '' })}
-          >
-            ✕
-          </button>
-        </div>
-      )}
     </div>
   )
 }

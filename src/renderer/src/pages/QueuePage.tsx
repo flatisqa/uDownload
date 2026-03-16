@@ -7,6 +7,7 @@ function statusBadgeClass(s: DownloadStatus) {
     idle: 'badge-pending',
     fetching_meta: 'badge-pending',
     pending: 'badge-pending',
+    starting: 'badge-download', // use same styles as download or a new pending style
     downloading: 'badge-download',
     converting: 'badge-convert',
     done: 'badge-done',
@@ -22,6 +23,7 @@ function statusLabel(s: DownloadStatus, t: any) {
     idle: t('statusIdle'),
     fetching_meta: t('statusFetching'),
     pending: t('statusPending'),
+    starting: t('statusStarting'),
     downloading: t('statusDownloading'),
     converting: t('statusConverting'),
     done: t('statusDone'),
@@ -33,6 +35,7 @@ function statusLabel(s: DownloadStatus, t: any) {
 }
 
 function progressBarClass(s: DownloadStatus) {
+  if (s === 'starting') return 'starting' // Will use CSS to animate it if needed
   if (s === 'converting') return 'converting'
   if (s === 'done') return 'done'
   if (s === 'error') return 'error'
@@ -58,13 +61,18 @@ function JobCard({ job }: { job: DownloadJob }) {
     }
   }
 
-  const isActive = ['idle', 'fetching_meta', 'pending', 'downloading', 'converting'].includes(job.status)
+  const isActive = ['idle', 'fetching_meta', 'pending', 'downloading', 'converting'].includes(
+    job.status
+  )
   const isDone = job.status === 'done'
   const isError = job.status === 'error'
   const showProgress = isActive && job.status !== 'pending'
 
   return (
-    <div className="glass-panel" style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}>
+    <div
+      className="glass-panel"
+      style={{ padding: '14px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}
+    >
       {/* Top row: thumbnail + title + badge + action buttons */}
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
         {/* Thumbnail */}
@@ -72,7 +80,14 @@ function JobCard({ job }: { job: DownloadJob }) {
           <img
             src={job.metadata.thumbnail}
             alt=""
-            style={{ width: 76, height: 49, objectFit: 'cover', borderRadius: 6, flexShrink: 0, marginTop: 2 }}
+            style={{
+              width: 76,
+              height: 49,
+              objectFit: 'cover',
+              borderRadius: 6,
+              flexShrink: 0,
+              marginTop: 2
+            }}
           />
         )}
 
@@ -84,13 +99,24 @@ function JobCard({ job }: { job: DownloadJob }) {
           {job.metadata?.author && (
             <p style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{job.metadata.author}</p>
           )}
-          <span className={`badge ${statusBadgeClass(job.status)}`} style={{ alignSelf: 'flex-start', marginTop: 2 }}>
+          <span
+            className={`badge ${statusBadgeClass(job.status)}`}
+            style={{ alignSelf: 'flex-start', marginTop: 2 }}
+          >
             {statusLabel(job.status, t)}
           </span>
         </div>
 
         {/* Action buttons — always on the right */}
-        <div style={{ display: 'flex', flexDirection: 'row', gap: 6, flexShrink: 0, alignItems: 'flex-start' }}>
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'row',
+            gap: 6,
+            flexShrink: 0,
+            alignItems: 'flex-start'
+          }}
+        >
           {isActive && (
             <button
               className="btn btn-ghost"
@@ -130,14 +156,19 @@ function JobCard({ job }: { job: DownloadJob }) {
       {showProgress && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
           {/* stats row */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--text-muted)' }}>
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              fontSize: 11,
+              color: 'var(--text-muted)'
+            }}
+          >
             <span style={{ fontVariantNumeric: 'tabular-nums' }}>
               {job.progress > 0 ? `${job.progress.toFixed(1)}%` : '...'}
             </span>
             <span style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-              {job.size && (
-                <span style={{ color: 'var(--text-secondary)' }}>{job.size}</span>
-              )}
+              {job.size && <span style={{ color: 'var(--text-secondary)' }}>{job.size}</span>}
               {job.speed && (
                 <>
                   {job.size && <span style={{ opacity: 0.4 }}>·</span>}

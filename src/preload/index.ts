@@ -67,7 +67,11 @@ const api = {
 
   // Utilities
   showInFolder: (path: string) => ipcRenderer.invoke('shell:showInFolder', path),
-  generateId: () => crypto.randomUUID()
+  generateId: () => crypto.randomUUID(),
+
+  // Filesystem
+  pathExists: (dirPath: string) => ipcRenderer.invoke('fs:pathExists', dirPath) as Promise<boolean>,
+  sanitizeName: (name: string) => ipcRenderer.invoke('fs:sanitizeName', name) as Promise<string>
 }
 
 if (process.contextIsolated) {
