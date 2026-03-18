@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import type {
   DownloadOptions,
   MediaFormat,
@@ -28,7 +28,7 @@ export default function DownloaderPage({
   onGoToSettings,
   onGoToQueue,
   onGoToMetaEditor
-}: DownloaderPageProps) {
+}: DownloaderPageProps): React.ReactNode {
   // Global downloader state
   const url = useStore((s) => s.url)
   const setUrl = useStore((s) => s.setUrl)
@@ -95,46 +95,70 @@ export default function DownloaderPage({
     return unsub
   }, [setUrl])
 
-  const handleFetch = async (urlToFetch = url) => {
-    if (!urlToFetch.trim()) return
-    setStep('fetching')
-    setError('')
-    setMeta(null)
-    try {
-      const res = await window.api.fetchMetadata(urlToFetch.trim(), settings.cookiesFromBrowser)
-      if (res.success && res.data) {
-        setMeta(res.data)
-        setCustomTitle(res.data.title)
-        setSelectedPlaylistItems(
-          res.data.playlistItems ? res.data.playlistItems.map((i) => i.id) : []
+  const handleFetch = useCallback(
+    async (urlToFetch = url): Promise<void> => {
+      if (!urlToFetch.trim()) return
+      setStep('fetching')
+      setError('')
+      setMeta(null)
+      try {
+        const res = await window.api.fetchMetadata(
+          urlToFetch.trim(),
+          settings.cookiesFromBrowser,
+          settings.cookiesManual
         )
-        setSelectedChapters([])
-        setTimeFrom('')
-        setTimeTo('')
-        setCustomArtist(res.data.author || '')
-        setCustomYear(res.data.uploadDate ? res.data.uploadDate.substring(0, 4) : '')
-        setCustomDescription(res.data.description || '')
-        setStep('preview')
-      } else {
-        setError(res.error || 'Failed to fetch metadata')
+        if (res.success && res.data) {
+          setMeta(res.data)
+          setCustomTitle(res.data.title)
+          setSelectedPlaylistItems(
+            res.data.playlistItems ? res.data.playlistItems.map((i) => i.id) : []
+          )
+          setSelectedChapters([])
+          setTimeFrom('')
+          setTimeTo('')
+          setCustomArtist(res.data.author || '')
+          setCustomYear(res.data.uploadDate ? res.data.uploadDate.substring(0, 4) : '')
+          setCustomDescription(res.data.description || '')
+          setStep('preview')
+        } else {
+          setError(res.error || 'Failed to fetch metadata')
+          setStep('idle')
+        }
+      } catch (e) {
+        setError(String(e))
         setStep('idle')
       }
-    } catch (e) {
-      setError(String(e))
-      setStep('idle')
-    }
-  }
+    },
+    [
+      url,
+      settings.cookiesFromBrowser,
+      settings.cookiesManual,
+      setStep,
+      setError,
+      setMeta,
+      setCustomTitle,
+      setSelectedPlaylistItems,
+      setSelectedChapters,
+      setTimeFrom,
+      setTimeTo,
+      setCustomArtist,
+      setCustomYear,
+      setCustomDescription
+    ]
+  )
 
-  handleFetchRef.current = handleFetch
+  useEffect(() => {
+    handleFetchRef.current = handleFetch
+  }, [handleFetch])
 
   // Auto-fetch when URL in store changes (e.g. from Toast or external source)
   useEffect(() => {
     if (url && step === 'idle' && !meta) {
       handleFetch(url)
     }
-  }, [url])
+  }, [url, step, meta, handleFetch])
 
-  const handleDownload = async () => {
+  const handleDownload = async (): Promise<void> => {
     if (!meta) return
 
     const baseOptions: DownloadOptions = {
@@ -146,9 +170,11 @@ export default function DownloaderPage({
       downloadSubtitles: settings.downloadSubtitles,
       embedSubtitles: settings.embedSubtitles,
       subtitleLanguage: settings.subtitleLanguage,
+      embedLyrics: settings.embedLyrics,
       embedThumbnail: settings.embedThumbnail,
       embedMetadata: settings.embedMetadata,
       cookiesFromBrowser: settings.cookiesFromBrowser,
+      cookiesManual: settings.cookiesManual,
       playlistAll: meta.isPlaylist
         ? selectedPlaylistItems.length === (meta.playlistItems?.length || 0)
         : true,
@@ -181,8 +207,9 @@ export default function DownloaderPage({
     if (chapterMode === 'selected' && selectedChapters.length > 0 && !meta.isPlaylist) {
       for (const chapterKey of selectedChapters) {
         const chapterInfo = meta.chapters?.find((c) => `${c.startTime}-${c.endTime}` === chapterKey)
-        const chapterIndex = meta.chapters?.findIndex((c) => `${c.startTime}-${c.endTime}` === chapterKey) ?? -1
-        
+        const chapterIndex =
+          meta.chapters?.findIndex((c) => `${c.startTime}-${c.endTime}` === chapterKey) ?? -1
+
         const chapterDuration = chapterInfo
           ? chapterInfo.endTime - chapterInfo.startTime
           : undefined
@@ -264,13 +291,13 @@ export default function DownloaderPage({
     }
   }
 
-  const applyPreset = (preset: Preset) => {
+  const applyPreset = (preset: Preset): void => {
     if (preset.options.format) setFormat(preset.options.format)
     if (preset.options.audioQuality) setAudioQuality(preset.options.audioQuality)
     if (preset.options.videoQuality) setVideoQuality(preset.options.videoQuality)
   }
 
-  const formatDuration = (secs: number) => {
+  const formatDuration = (secs: number): string => {
     const h = Math.floor(secs / 3600)
     const m = Math.floor((secs % 3600) / 60)
     const s = secs % 60
@@ -433,10 +460,10 @@ export default function DownloaderPage({
           <div className="spinner-ring" />
           <div style={{ textAlign: 'center' }}>
             <p className="heading-sm" style={{ color: 'var(--accent)', letterSpacing: '0.1em' }}>
-              {/* @ts-ignore */ t('analyzingLink')}
+              {t('analyzingLink')}
             </p>
             <p style={{ color: 'var(--text-secondary)', fontSize: 12, marginTop: 6 }}>
-              {/* @ts-ignore */ t('analyzingDesc')}
+              {t('analyzingDesc')}
             </p>
           </div>
         </div>

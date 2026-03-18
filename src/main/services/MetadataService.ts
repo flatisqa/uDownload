@@ -2,10 +2,17 @@ import { execFile } from 'child_process'
 import { promisify } from 'util'
 import * as path from 'path'
 import * as os from 'os'
+import * as fs from 'fs'
 import { getYtdlpBin } from './BinaryManager'
 import type { VideoMetadata, ChapterInfo, PlaylistItem } from '@shared/types/download'
 
 const execFileAsync = promisify(execFile)
+
+interface ExecError extends Error {
+  stderr?: string
+  stdout?: string
+  code?: number
+}
 
 interface RawChapter {
   id?: number
@@ -38,9 +45,18 @@ interface RawYtdlpInfo {
   upload_date?: string
 }
 
+function ensureManualCookiesFile(cookiesManual?: string): string | undefined {
+  const raw = cookiesManual?.trim()
+  if (!raw) return undefined
+  const cookiesPath = path.join(os.tmpdir(), 'yd-manual-cookies.txt')
+  fs.writeFileSync(cookiesPath, raw, 'utf8')
+  return cookiesPath
+}
+
 export async function fetchMetadata(
   url: string,
-  cookiesFromBrowser?: string
+  cookiesFromBrowser?: string,
+  cookiesManual?: string
 ): Promise<VideoMetadata> {
   const bin = getYtdlpBin()
 
@@ -50,15 +66,35 @@ export async function fetchMetadata(
     '--flat-playlist' // for playlists: fast, only get entries info
   ]
 
-  if (cookiesFromBrowser) {
+  const manualCookiesPath = ensureManualCookiesFile(cookiesManual)
+  if (manualCookiesPath) {
+    args.push('--cookies', manualCookiesPath)
+  } else if (cookiesFromBrowser) {
     args.push('--cookies-from-browser', cookiesFromBrowser)
   }
 
   args.push(url)
 
-  const { stdout } = await execFileAsync(bin, args)
+  try {
+    const { stdout } = await execFileAsync(bin, args)
+    return parseMetadataResponse(stdout, url)
+  } catch (error: unknown) {
+    // Check for YouTube n-challenge error
+    const execError = error as ExecError
+    const errorMessage = execError.stderr || execError.message || String(error)
+    if (
+      errorMessage.includes('n challenge solving failed') ||
+      errorMessage.includes('Requested format is not available')
+    ) {
+      throw new Error(
+        'YouTube protection detected. Please update yt-dlp to the latest version in Settings → Components → Check for updates'
+      )
+    }
+    throw error
+  }
+}
 
-  // yt-dlp may return multiple JSON lines for playlists
+function parseMetadataResponse(stdout: string, url: string): VideoMetadata {
   const lines = stdout.trim().split('\n').filter(Boolean)
   const first: RawYtdlpInfo = JSON.parse(lines[0])
 
@@ -138,9 +174,11 @@ export function buildYtdlpArgs(options: {
   downloadSubtitles: boolean
   embedSubtitles: boolean
   subtitleLanguage: string
+  embedLyrics: boolean
   embedThumbnail: boolean
   embedMetadata: boolean
   cookiesFromBrowser?: string
+  cookiesManual?: string
   selectedChapters?: string[]
   selectedPlaylistItems?: string[]
   timeFrom?: string
@@ -181,8 +219,12 @@ export function buildYtdlpArgs(options: {
   const isSingleChapter = selectedChaptersCount === 1
 
   // Use custom title for file name if provided, otherwise yt-dlp title
+  // Remove problematic characters including emojis that cause FFmpeg errors
   const titleTemplate = options.customTitle
-    ? options.customTitle.replace(/[\\/:*?"<>|]/g, '_')
+    ? options.customTitle
+        .replace(/[\\/:*?"<>|]/g, '_')
+        .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
+        .trim()
     : '%(title)s'
 
   if (hasMultipleChapters && options.format === 'audio') {
@@ -199,12 +241,9 @@ export function buildYtdlpArgs(options: {
     args.push('-o', `default:${outputTemplate}`)
     args.push('-o', `chapter:${chapterTemplate}`)
   } else if (isSingleChapter && options.format === 'audio') {
-    // For a single chapter, save it directly to the output path
-    // Format: "Video Title - Chapter Title.mp3"
-    const chapterTemplate = path.join(outputPath, `${titleTemplate} - %(section_title)s.%(ext)s`)
+    // For a single chapter, use customTitle directly (already includes chapter info from DownloaderPage)
     const outputTemplate = path.join(outputPath, `${titleTemplate}.%(ext)s`)
-    args.push('-o', `default:${outputTemplate}`)
-    args.push('-o', `chapter:${chapterTemplate}`)
+    args.push('-o', outputTemplate)
   } else {
     const outputTemplate = path.join(outputPath, `${titleTemplate}.%(ext)s`)
     args.push('-o', outputTemplate)
@@ -246,36 +285,30 @@ export function buildYtdlpArgs(options: {
     args.push('--merge-output-format', 'mkv')
   }
 
-  // Check if format requires mutagen for embedding metadata/thumbnails
-  const requiresMutagen =
-    options.format === 'audio' &&
-    (options.audioQuality === 'best' ||
-      options.audioQuality === 'flac' ||
-      options.audioQuality === 'opus' ||
-      options.audioQuality === 'ogg')
-
-  // Subtitles
+  // Subtitles / Lyrics
   if (options.downloadSubtitles) {
     args.push('--write-subs', '--write-auto-subs', '--sub-lang', options.subtitleLanguage)
-    if (options.embedSubtitles) {
+    if (options.embedSubtitles && options.format !== 'audio') {
+      args.push('--embed-subs')
+    }
+    if (options.embedLyrics && options.format === 'audio') {
       args.push('--embed-subs')
     }
   }
 
   // Metadata / Thumbnail
-  const canEmbed = !requiresMutagen
-
-  if (canEmbed) {
+  const wantsThumbnail = Boolean(options.customThumbnail || options.embedThumbnail)
+  if (wantsThumbnail) {
     if (options.customThumbnail) {
-      // If custom thumbnail is provided, we use it
       args.push('--thumbnail-output', options.customThumbnail)
-      args.push('--embed-thumbnail')
-    } else if (options.embedThumbnail) {
-      args.push('--embed-thumbnail')
     }
-
-    if (options.embedMetadata) args.push('--embed-metadata')
+    // Convert to jpeg to maximize cover-art compatibility for audio containers (opus/flac/mp3/...)
+    if (options.format === 'audio') {
+      args.push('--convert-thumbnails', 'jpg')
+    }
+    args.push('--embed-thumbnail')
   }
+  if (options.embedMetadata) args.push('--embed-metadata')
 
   // We use a hybrid strategy:
   // 1. --replace-in-metadata for raw text fields (handles () signs better than regex)
@@ -296,21 +329,16 @@ export function buildYtdlpArgs(options: {
     args.push('--parse-metadata', `:(?P<date>${paddedYear})`)
   }
   if (options.customDescription) {
-    // Inject the custom comment into potential URL sources because yt-dlp maps
-    // webpage_url natively to the ID3 "Comment" and "purl" tags for MP3s.
-    args.push('--replace-in-metadata', 'webpage_url', '(?s)^.*$', options.customDescription)
-    args.push('--replace-in-metadata', 'url', '(?s)^.*$', options.customDescription)
-    args.push('--replace-in-metadata', 'original_url', '(?s)^.*$', options.customDescription)
-
-    // Set custom description in all possible comment/desc fields
+    // Set custom description only in description and comment fields to avoid duplication
     args.push('--replace-in-metadata', 'description', '(?s)^.*$', options.customDescription)
     args.push('--replace-in-metadata', 'comment', '(?s)^.*$', options.customDescription)
-    args.push('--replace-in-metadata', 'synopsis', '(?s)^.*$', options.customDescription)
-    args.push('--replace-in-metadata', 'album', '(?s)^.*$', options.customDescription)
   }
-  if (options.cookiesFromBrowser) args.push('--cookies-from-browser', options.cookiesFromBrowser)
-
-  if (options.embedMetadata) args.push('--embed-metadata')
+  const manualCookiesPath = ensureManualCookiesFile(options.cookiesManual)
+  if (manualCookiesPath) {
+    args.push('--cookies', manualCookiesPath)
+  } else if (options.cookiesFromBrowser) {
+    args.push('--cookies-from-browser', options.cookiesFromBrowser)
+  }
 
   // Playlist Items
   if (options.selectedPlaylistItems && options.selectedPlaylistItems.length > 0) {

@@ -2,7 +2,7 @@ import { app } from 'electron'
 import * as fs from 'fs'
 import * as path from 'path'
 import * as https from 'https'
-import { execFile } from 'child_process'
+import { execFile, execSync } from 'child_process'
 import { promisify } from 'util'
 
 const execFileAsync = promisify(execFile)
@@ -37,6 +37,12 @@ function getYtdlpDownloadUrl(tag: string): string {
   if (process.platform === 'darwin') {
     return `https://github.com/yt-dlp/yt-dlp/releases/download/${tag}/yt-dlp_macos`
   }
+  if (process.platform === 'linux') {
+    if (process.arch === 'arm64') {
+      return `https://github.com/yt-dlp/yt-dlp/releases/download/${tag}/yt-dlp_linux_aarch64`
+    }
+    return `https://github.com/yt-dlp/yt-dlp/releases/download/${tag}/yt-dlp_linux`
+  }
   return `https://github.com/yt-dlp/yt-dlp/releases/download/${tag}/yt-dlp`
 }
 
@@ -54,7 +60,7 @@ async function downloadFile(url: string, dest: string): Promise<void> {
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true })
 
     const file = fs.createWriteStream(dest)
-    const followRedirect = (u: string) => {
+    const followRedirect = (u: string): void => {
       https
         .get(u, { headers: { 'User-Agent': 'MediaFetchPro/1.0' } }, (res) => {
           if (res.statusCode === 301 || res.statusCode === 302) {
@@ -94,6 +100,18 @@ async function getLatestYtdlpTag(): Promise<string> {
   })
 }
 
+function isLikelyZipimportYtdlp(binaryPath: string): boolean {
+  try {
+    const fd = fs.openSync(binaryPath, 'r')
+    const header = Buffer.alloc(2)
+    fs.readSync(fd, header, 0, 2, 0)
+    fs.closeSync(fd)
+    return header.toString('utf8') === '#!'
+  } catch {
+    return false
+  }
+}
+
 export async function getStatus(): Promise<BinaryStatus> {
   const ytdlpPath = getYtdlpPath()
   const ffmpegPath = getFfmpegPath()
@@ -102,6 +120,11 @@ export async function getStatus(): Promise<BinaryStatus> {
   let ytdlpVersion: string | undefined
   let ffmpeg = fs.existsSync(ffmpegPath)
   let ffmpegVersion: string | undefined
+
+  if (ytdlp && process.platform === 'linux' && isLikelyZipimportYtdlp(ytdlpPath)) {
+    ytdlp = false
+    ytdlpVersion = 'zipimport-build-detected'
+  }
 
   // Also check system ffmpeg (Linux)
   if (!ffmpeg && process.platform === 'linux') {
@@ -179,11 +202,17 @@ export async function checkAndUpdate(): Promise<string> {
     }
   }
 
-  if (currentVersion === tag) {
+  const needsLinuxStandaloneMigration =
+    process.platform === 'linux' && fs.existsSync(ytdlpPath) && isLikelyZipimportYtdlp(ytdlpPath)
+
+  if (currentVersion === tag && !needsLinuxStandaloneMigration) {
     return `yt-dlp is already up to date (${tag})`
   }
 
   await downloadYtdlp()
+  if (needsLinuxStandaloneMigration) {
+    return `yt-dlp migrated to standalone Linux binary with bundled dependencies (${tag})`
+  }
   return `yt-dlp updated to ${tag}`
 }
 
@@ -199,11 +228,10 @@ export function getFfmpegBin(): string {
   if (fs.existsSync(p)) return p
   // Check if ffmpeg is in system PATH
   try {
-    const { execSync } = require('child_process')
     const whichCmd = process.platform === 'win32' ? 'where' : 'which'
     const fullPath = execSync(`${whichCmd} ffmpeg`).toString().trim().split('\n')[0]
     if (fullPath) return fullPath
-  } catch (e) {
+  } catch {
     // Not on path
   }
   return 'ffmpeg'

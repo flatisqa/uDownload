@@ -1,4 +1,5 @@
 import './Titlebar.css'
+import type { ReactElement } from 'react'
 import { useTranslation } from '../i18n'
 import { useStore } from '../store'
 
@@ -9,13 +10,13 @@ interface TitlebarProps {
   setPage: (page: Page) => void
 }
 
-export default function Titlebar({ page, setPage }: TitlebarProps) {
+export default function Titlebar({ page, setPage }: TitlebarProps): ReactElement {
   const settings = useStore((s) => s.settings)
   const t = useTranslation(settings.language)
 
-  const handleMinimize = () => window.api.minimizeWindow()
-  const handleMaximize = () => window.api.maximizeWindow()
-  const handleClose = () => window.api.closeWindow()
+  const handleMinimize = (): void => window.api.minimizeWindow()
+  const handleMaximize = (): void => window.api.maximizeWindow()
+  const handleClose = (): void => window.api.closeWindow()
 
   return (
     <div className="titlebar">

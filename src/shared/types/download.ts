@@ -71,14 +71,16 @@ export interface DownloadOptions {
   audioQuality: AudioQuality
   videoQuality: VideoQuality
   outputPath: string
-  // Subtitles
+  // Subtitles/Lyrics
   downloadSubtitles: boolean
   embedSubtitles: boolean
   subtitleLanguage: string
+  embedLyrics: boolean
   // Metadata
   embedThumbnail: boolean
   embedMetadata: boolean
   cookiesFromBrowser?: string
+  cookiesManual?: string
   selectedChapters?: string[]
   // Playlist
   playlistAll: boolean
@@ -123,17 +125,20 @@ export interface AppConfig {
   outputDirectoryVideo: string
   outputDirectoryAudio: string
   concurrentDownloads: number // 1-5
-  // Subtitles defaults
+  // Subtitles/Lyrics defaults
   downloadSubtitles: boolean
   embedSubtitles: boolean
   subtitleLanguage: string
+  embedLyrics: boolean
   // Metadata defaults
   embedThumbnail: boolean
   embedMetadata: boolean
   cookiesFromBrowser: string
+  cookiesManual: string
   // Features
   clipboardWatcher: boolean
   portableMode: boolean
+  autoCheckUpdates: boolean
   customArgs: string
   // Appearance
   language: 'en' | 'ru'
@@ -183,12 +188,15 @@ export const DEFAULT_CONFIG: AppConfig = {
   concurrentDownloads: 2,
   downloadSubtitles: false,
   embedSubtitles: false,
-  subtitleLanguage: 'ru',
+  subtitleLanguage: 'orig',
+  embedLyrics: true,
   embedThumbnail: true,
   embedMetadata: true,
   cookiesFromBrowser: '',
+  cookiesManual: '',
   clipboardWatcher: true,
   portableMode: false,
+  autoCheckUpdates: true,
   customArgs: '',
   language: 'en',
   theme: 'system',

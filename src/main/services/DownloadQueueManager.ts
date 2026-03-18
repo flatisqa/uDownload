@@ -6,7 +6,7 @@ import { EventEmitter } from 'events'
 import { getYtdlpBin, getFfmpegBin } from './BinaryManager'
 import { buildYtdlpArgs } from './MetadataService'
 import Store from 'electron-store'
-import type { DownloadJob, DownloadOptions } from '@shared/types/download'
+import type { DownloadJob, DownloadOptions, AppConfig } from '@shared/types/download'
 
 // [download]  45.3% of 128.30MiB at 5.20MiB/s ETA 00:12
 // [download]   1.4% of ~123.4MiB at Unknown speed ETA Unknown ETA
@@ -18,32 +18,33 @@ type ProcessEntry = {
   destinations: string[]
   speedHistory: number[]
   progress?: number
+  phase: 'downloading' | 'converting'
 }
 
 export class DownloadQueueManager extends EventEmitter {
   private queue: DownloadJob[] = []
   private active: Map<string, ProcessEntry> = new Map()
-  private store: Store
+  private store: Store<AppConfig>
   private concurrency: number
 
   constructor(concurrency = 2) {
     super()
-    this.store = new (Store as any)()
+    this.store = new Store<AppConfig>()
     this.concurrency = concurrency
   }
 
-  setConcurrency(n: number) {
+  setConcurrency(n: number): void {
     this.concurrency = n
     this.tick()
   }
 
-  enqueue(job: DownloadJob) {
+  enqueue(job: DownloadJob): void {
     this.queue.push(job)
     // Delay tick to allow IPC main-renderer roundtrip to complete
     setTimeout(() => this.tick(), 50)
   }
 
-  cancel(jobId: string) {
+  cancel(jobId: string): void {
     // Remove from queue if pending
     const qIdx = this.queue.findIndex((j) => j.id === jobId)
     if (qIdx !== -1) {
@@ -64,7 +65,7 @@ export class DownloadQueueManager extends EventEmitter {
         for (const p of cleanupPaths) {
           try {
             if (fs.existsSync(p)) fs.unlinkSync(p)
-          } catch (e) {
+          } catch {
             // Ignore deletion errors
           }
         }
@@ -73,21 +74,21 @@ export class DownloadQueueManager extends EventEmitter {
     }
   }
 
-  resume(jobId: string) {
+  resume(jobId: string): void {
     // Re-enqueue with same options (yt-dlp will continue from partial file)
     this.emit('progress', { id: jobId, status: 'pending' })
     this.tick()
   }
 
-  private tick() {
+  private tick(): void {
     while (this.active.size < this.concurrency && this.queue.length > 0) {
       const job = this.queue.shift()!
       this.startJob(job)
     }
   }
 
-  private startJob(job: DownloadJob) {
-    const config = this.store.get('config') as any
+  private startJob(job: DownloadJob): void {
+    const config = this.store.get('config') as Partial<AppConfig> | undefined
     let outputPath = job.options.outputPath
 
     if (!outputPath) {
@@ -106,7 +107,7 @@ export class DownloadQueueManager extends EventEmitter {
       if (!fs.existsSync(outputPath)) {
         fs.mkdirSync(outputPath, { recursive: true })
       }
-    } catch (e) {
+    } catch {
       this.emit('error', {
         id: job.id,
         status: 'error',
@@ -129,9 +130,11 @@ export class DownloadQueueManager extends EventEmitter {
       downloadSubtitles: job.options.downloadSubtitles,
       embedSubtitles: job.options.embedSubtitles,
       subtitleLanguage: job.options.subtitleLanguage,
+      embedLyrics: job.options.embedLyrics,
       embedThumbnail: job.options.embedThumbnail,
       embedMetadata: job.options.embedMetadata,
       cookiesFromBrowser: job.options.cookiesFromBrowser,
+      cookiesManual: job.options.cookiesManual,
       selectedChapters: job.options.selectedChapters,
       selectedPlaylistItems: job.options.selectedPlaylistItems,
       timeFrom: job.options.timeFrom,
@@ -159,7 +162,8 @@ export class DownloadQueueManager extends EventEmitter {
       options: job.options,
       destinations,
       speedHistory: [],
-      progress: 0
+      progress: 0,
+      phase: 'downloading'
     })
 
     const lastStderrLines: string[] = []
@@ -179,6 +183,11 @@ export class DownloadQueueManager extends EventEmitter {
           destinations.push(destMatch[1].trim())
           continue
         }
+        const extractedAudioMatch = /\[ExtractAudio\] Destination: (.*)/.exec(trimmed)
+        if (extractedAudioMatch) {
+          destinations.push(extractedAudioMatch[1].trim())
+          continue
+        }
         const mergeMatch = /\[Merger\] Merging formats into "(.*)"/.exec(trimmed)
         if (mergeMatch) {
           destinations.push(mergeMatch[1].trim())
@@ -187,13 +196,14 @@ export class DownloadQueueManager extends EventEmitter {
 
         if (
           trimmed.includes('[ExtractAudio]') ||
-          trimmed.includes('[ffmpeg]') ||
           trimmed.includes('Merging') ||
           trimmed.includes('[Metadata]') ||
           trimmed.includes('[Thumbnails]') ||
           trimmed.includes('[EmbedSubtitle]') ||
           trimmed.includes('[Fixup]')
         ) {
+          const entry = this.active.get(job.id)
+          if (entry) entry.phase = 'converting'
           this.emit('progress', { id: job.id, status: 'converting', progress: 99.9 })
           continue
         }
@@ -232,15 +242,56 @@ export class DownloadQueueManager extends EventEmitter {
         const trimmed = line.trim()
         if (!trimmed) continue
 
+        const destMatch = /\[download\] Destination: (.*)/.exec(trimmed)
+        if (destMatch) {
+          destinations.push(destMatch[1].trim())
+          continue
+        }
+        const extractedAudioMatch = /\[ExtractAudio\] Destination: (.*)/.exec(trimmed)
+        if (extractedAudioMatch) {
+          destinations.push(extractedAudioMatch[1].trim())
+          continue
+        }
+        const mergeMatch = /\[Merger\] Merging formats into "(.*)"/.exec(trimmed)
+        if (mergeMatch) {
+          destinations.push(mergeMatch[1].trim())
+          continue
+        }
+
+        const downloadMatch = PROGRESS_RE.exec(trimmed)
+        if (downloadMatch) {
+          const progress = parseFloat(downloadMatch[1])
+          const size = downloadMatch[2].trim()
+          let speed = downloadMatch[3].trim()
+          const eta = downloadMatch[4].trim()
+
+          const entry = this.active.get(job.id)
+          if (entry) {
+            const currentSpeedBytes = this.parseSpeed(speed)
+            if (currentSpeedBytes > 0) {
+              entry.speedHistory.push(currentSpeedBytes)
+              if (entry.speedHistory.length > 10) entry.speedHistory.shift()
+              const avgSpeedBytes =
+                entry.speedHistory.reduce((a, b) => a + b, 0) / entry.speedHistory.length
+              speed = `~${this.formatSpeed(avgSpeedBytes)}`
+            }
+          }
+
+          this.emit('progress', { id: job.id, status: 'downloading', progress, size, speed, eta })
+          continue
+        }
+
         // ffmpeg conversion progress in stderr — detect and emit converting status
         if (
           trimmed.includes('[ExtractAudio]') ||
-          trimmed.includes('[ffmpeg]') ||
+          trimmed.includes('Merging') ||
           trimmed.includes('[Metadata]') ||
           trimmed.includes('[Thumbnails]') ||
           trimmed.includes('[EmbedSubtitle]') ||
           trimmed.includes('[Fixup]')
         ) {
+          const entry = this.active.get(job.id)
+          if (entry) entry.phase = 'converting'
           this.emit('progress', { id: job.id, status: 'converting', progress: 99.9 })
           continue
         }
@@ -261,10 +312,11 @@ export class DownloadQueueManager extends EventEmitter {
             progress = Math.min(99.9, (currentSecs / entry.options.expectedDuration) * 100)
             if (entry) entry.progress = progress
           }
+          const status = entry?.phase === 'converting' ? 'converting' : 'downloading'
 
           this.emit('progress', {
             id: job.id,
-            status: 'downloading',
+            status,
             progress,
             size: size,
             speed: speed,
@@ -285,6 +337,10 @@ export class DownloadQueueManager extends EventEmitter {
         entry && entry.destinations.length > 0
           ? entry.destinations[entry.destinations.length - 1]
           : undefined
+      const finalFileSize =
+        finalFilePath && fs.existsSync(finalFilePath)
+          ? this.formatBytes(fs.statSync(finalFilePath).size)
+          : undefined
 
       this.active.delete(job.id)
       if (code === 0) {
@@ -293,7 +349,8 @@ export class DownloadQueueManager extends EventEmitter {
           status: 'done',
           progress: 100,
           outputPath: job.outputPath,
-          finalFilePath: finalFilePath
+          finalFilePath: finalFilePath,
+          size: finalFileSize
         })
       } else if (code !== null) {
         const errorDetail = lastStderrLines.join('').trim() || `yt-dlp exited with code ${code}`
@@ -337,6 +394,13 @@ export class DownloadQueueManager extends EventEmitter {
     if (bytesPerSec >= 1024 * 1024) return (bytesPerSec / (1024 * 1024)).toFixed(2) + 'MiB/s'
     if (bytesPerSec >= 1024) return (bytesPerSec / 1024).toFixed(1) + 'KiB/s'
     return bytesPerSec.toFixed(0) + 'B/s'
+  }
+
+  private formatBytes(bytes: number): string {
+    if (bytes >= 1024 * 1024 * 1024) return (bytes / (1024 * 1024 * 1024)).toFixed(2) + 'GiB'
+    if (bytes >= 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(2) + 'MiB'
+    if (bytes >= 1024) return (bytes / 1024).toFixed(1) + 'KiB'
+    return bytes.toFixed(0) + 'B'
   }
 }
 

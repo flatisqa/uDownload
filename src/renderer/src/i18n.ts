@@ -61,6 +61,9 @@ export const translations = {
     activeJobs: 'active',
     finishedJobs: 'finished',
     noDownloads: 'No downloads',
+    downloadedFileLabel: 'File',
+    downloadedFormatLabel: 'Format',
+    retryBtn: 'Retry',
 
     // Statuses
     statusIdle: 'Idle',
@@ -96,10 +99,16 @@ export const translations = {
     browse: 'Browse',
     concurrent: 'CONCURRENT DOWNLOADS',
 
-    subtitlesSec: 'Subtitles',
-    downloadSubs: 'Download subtitles',
+    subtitlesSec: 'Subtitles & Lyrics',
+    downloadSubs: 'Download subtitles / lyrics',
     embedSubs: 'Embed into video',
+    embedLyrics: 'Embed lyrics into audio',
     subsLang: 'LANGUAGE',
+    subsLangOrig: 'Original',
+    subsLangOther: 'Other (custom code)',
+    subsLangInfo:
+      'Language codes: en (English), ru (Russian), es (Spanish), fr (French), de (German), ja (Japanese), ko (Korean), zh (Chinese), ar (Arabic), pt (Portuguese), it (Italian), etc.',
+    subsLangPlaceholder: 'Enter language code (e.g., en, ru, es)...',
 
     metadataSec: 'Metadata & Tags',
     embedThumb: 'Embed thumbnail (album art)',
@@ -108,6 +117,15 @@ export const translations = {
     useCookiesNone: 'None (Anonymous)',
     useCookiesWarn:
       'Requires the browser to be closed during download for yt-dlp to access the cookie file.',
+    manualCookies: 'MANUAL COOKIES (cookies.txt)',
+    manualCookiesPlaceholder:
+      '# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t2145916800\tSID\tYOUR_VALUE',
+    manualCookiesHint: 'If filled, manual cookies are used instead of browser cookies.',
+    manualCookiesHowToTitle: 'How to get and add cookies',
+    manualCookiesHowTo1: '1) Install a browser extension to export cookies as Netscape cookies.txt',
+    manualCookiesHowTo2: '2) Open the target site and export cookies',
+    manualCookiesHowTo3: '3) Copy the cookies.txt content and paste it here',
+    manualCookiesHowTo4: '4) Save settings and start download',
 
     clipboardSec: 'Clipboard Watcher',
     autoDetect: 'Auto-detect media links',
@@ -118,21 +136,32 @@ export const translations = {
     cancelBtn: 'Cancel',
     savePreset: 'Save Preset',
     noPresets: 'No presets yet.',
+    editBtn: 'Edit',
     deleteBtn: 'Delete',
 
     advancedSec: 'Advanced',
     customArgs: 'CUSTOM yt-dlp ARGUMENTS',
+    customArgsInfo: 'Additional yt-dlp options you can use',
+    customArgsTooltip: 'Click to pin/unpin this tooltip',
+    customArgsExamples:
+      'Examples:\n• --proxy socks5://127.0.0.1:1080 (use proxy)\n• --limit-rate 1M (limit download speed)\n• --sleep-interval 5 (wait between downloads)\n• --geo-bypass (bypass geo-restrictions)\n• --format "bestvideo[height<=720]+bestaudio" (custom quality)\n• --write-description (save video description)\n• --write-info-json (save metadata as JSON)\n\nFull list: https://github.com/yt-dlp/yt-dlp#usage-and-options',
     portableMode: 'Portable mode',
     portableModeDesc: 'Save config.json next to the executable',
 
     componentsSec: 'Components',
+    autoCheckUpdates: 'Check for updates on startup',
+    autoCheckUpdatesDesc: 'Automatically check for yt-dlp and ffmpeg updates when app starts',
     checkForUpdates: '↻ Check for updates',
     updating: 'Updating...',
 
     // Clipboard Toast
     detectedLink: 'Detected media link',
     downloadNow: 'Download Now',
-    dismiss: 'Dismiss'
+    dismiss: 'Dismiss',
+
+    // Errors
+    ytdlpUpdateRequired:
+      'YouTube protection detected. Please update yt-dlp to the latest version in Settings → Components → Check for updates'
   },
   ru: {
     // Navigation
@@ -185,7 +214,7 @@ export const translations = {
     // Queue Page
     queueTitle: 'Очередь загрузок',
     queueEmpty: 'Очередь пуста. Найдите что-нибудь для загрузки!',
-    openFolder: 'Папка',
+    openFolder: 'Открыть папку',
     pause: 'Пауза',
     resume: 'Пуск',
     cancel: 'Отмена',
@@ -194,6 +223,9 @@ export const translations = {
     activeJobs: 'активных',
     finishedJobs: 'завершенных',
     noDownloads: 'Нет загрузок',
+    downloadedFileLabel: 'Файл',
+    downloadedFormatLabel: 'Формат',
+    retryBtn: 'Повторить',
 
     // Statuses
     statusIdle: 'Ожидание',
@@ -229,10 +261,16 @@ export const translations = {
     browse: 'Обзор',
     concurrent: 'ОДНОВРЕМЕННЫХ ЗАГРУЗОК',
 
-    subtitlesSec: 'Субтитры',
-    downloadSubs: 'Скачивать субтитры',
+    subtitlesSec: 'Субтитры и Текст песен',
+    downloadSubs: 'Скачивать субтитры / текст песен',
     embedSubs: 'Встраивать в видео',
+    embedLyrics: 'Встраивать текст в аудио',
     subsLang: 'ЯЗЫК СУБТИТРОВ',
+    subsLangOrig: 'Оригинал',
+    subsLangOther: 'Другой (свой код)',
+    subsLangInfo:
+      'Коды языков: en (английский), ru (русский), es (испанский), fr (французский), de (немецкий), ja (японский), ko (корейский), zh (китайский), ar (арабский), pt (португальский), it (итальянский) и т.д.',
+    subsLangPlaceholder: 'Введите код языка (напр., en, ru, es)...',
 
     metadataSec: 'Метаданные и Теги',
     embedThumb: 'Встроить обложку (thumbnail)',
@@ -241,6 +279,17 @@ export const translations = {
     useCookiesNone: 'Нет (Анонимно)',
     useCookiesWarn:
       'Браузер должен быть закрыт во время загрузки, чтобы yt-dlp мог получить доступ к файлу cookie.',
+    manualCookies: 'РУЧНЫЕ COOKIES (cookies.txt)',
+    manualCookiesPlaceholder:
+      '# Netscape HTTP Cookie File\n.youtube.com\tTRUE\t/\tTRUE\t2145916800\tSID\tВАШЕ_ЗНАЧЕНИЕ',
+    manualCookiesHint:
+      'Если поле заполнено, ручные cookies используются вместо cookies из браузера.',
+    manualCookiesHowToTitle: 'Как получить и добавить cookies',
+    manualCookiesHowTo1:
+      '1) Установите расширение браузера для экспорта cookies в формате Netscape cookies.txt',
+    manualCookiesHowTo2: '2) Откройте нужный сайт и экспортируйте cookies',
+    manualCookiesHowTo3: '3) Скопируйте содержимое cookies.txt и вставьте сюда',
+    manualCookiesHowTo4: '4) Сохраните настройки и запустите загрузку',
 
     clipboardSec: 'Перехват буфера обмена',
     autoDetect: 'Автоопределение медиа ссылок',
@@ -251,21 +300,33 @@ export const translations = {
     cancelBtn: 'Отмена',
     savePreset: 'Сохранить Пресет',
     noPresets: 'Нет пресетов.',
+    editBtn: 'Редактировать',
     deleteBtn: 'Удалить',
 
     advancedSec: 'Расширенные',
     customArgs: 'КАСТОМНЫЕ АРГУМЕНТЫ yt-dlp',
+    customArgsInfo: 'Дополнительные опции yt-dlp, которые можно использовать',
+    customArgsTooltip: 'Нажмите, чтобы закрепить/открепить подсказку',
+    customArgsExamples:
+      'Примеры:\n• --proxy socks5://127.0.0.1:1080 (использовать прокси)\n• --limit-rate 1M (ограничить скорость загрузки)\n• --sleep-interval 5 (пауза между загрузками)\n• --geo-bypass (обход гео-ограничений)\n• --format "bestvideo[height<=720]+bestaudio" (своё качество)\n• --write-description (сохранить описание видео)\n• --write-info-json (сохранить метаданные как JSON)\n\nПолный список: https://github.com/yt-dlp/yt-dlp#usage-and-options',
     portableMode: 'Портативный режим',
     portableModeDesc: 'Сохранять config.json рядом с .exe файлом',
 
     componentsSec: 'Компоненты',
+    autoCheckUpdates: 'Проверка обновлений при запуске',
+    autoCheckUpdatesDesc:
+      'Автоматически проверять обновления yt-dlp и ffmpeg при запуске приложения',
     checkForUpdates: '↻ Проверить обновления',
     updating: 'Обновление...',
 
     // Clipboard Toast
     detectedLink: 'Обнаружена ссылка',
     downloadNow: 'Скачать сейчас',
-    dismiss: 'Скрыть'
+    dismiss: 'Скрыть',
+
+    // Errors
+    ytdlpUpdateRequired:
+      'Обнаружена защита YouTube. Пожалуйста, обновите yt-dlp до последней версии в Настройки → Компоненты → Проверить обновления'
   }
 }
 

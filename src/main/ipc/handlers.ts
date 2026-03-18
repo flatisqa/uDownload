@@ -11,18 +11,24 @@ import type { DownloadOptions, AppConfig } from '@shared/types/download'
 import { DEFAULT_CONFIG } from '@shared/types/download'
 
 // Persistent settings store
-const store = new (Store as any)({ defaults: DEFAULT_CONFIG })
+const store = new Store<AppConfig>({ defaults: DEFAULT_CONFIG })
 
-export function registerIpcHandlers(mainWindow: BrowserWindow) {
+export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // ─── Metadata ─────────────────────────────────────────────────────────────
-  ipcMain.handle('download:fetchMetadata', async (_e, url: string, cookiesFromBrowser?: string) => {
-    try {
-      const data = await fetchMetadata(url, cookiesFromBrowser)
-      return { success: true, data }
-    } catch (error) {
-      return { success: false, error: String(error) }
+  ipcMain.handle(
+    'download:fetchMetadata',
+    async (_e, url: string, cookiesFromBrowser?: string, cookiesManual?: string) => {
+      try {
+        console.log('[IPC] fetchMetadata called with:', { url, cookiesFromBrowser, cookiesManual })
+        const data = await fetchMetadata(url, cookiesFromBrowser, cookiesManual)
+        console.log('[IPC] fetchMetadata success:', data.title)
+        return { success: true, data }
+      } catch (error) {
+        console.error('[IPC] fetchMetadata error:', error)
+        return { success: false, error: String(error) }
+      }
     }
-  })
+  )
 
   // ─── Download ──────────────────────────────────────────────────────────────
   ipcMain.handle('download:start', async (_e, url: string, options: DownloadOptions) => {

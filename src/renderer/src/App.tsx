@@ -5,8 +5,10 @@ import SettingsPage from './pages/SettingsPage'
 import Titlebar from './components/Titlebar'
 import MetadataEditorPage from './pages/MetadataEditorPage'
 import { useStore } from './store'
+import type { DownloadJob } from '@shared/types/download'
 
 type Page = 'downloader' | 'queue' | 'settings' | 'edit-metadata'
+type JobUpdatePayload = Partial<DownloadJob> & { id: string }
 
 function App(): React.ReactNode {
   const [page, setPage] = useState<Page>('downloader')
@@ -27,7 +29,7 @@ function App(): React.ReactNode {
       root.setAttribute('data-theme', isDark ? 'deep-space' : 'light')
 
       const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
-      const handler = (e: MediaQueryListEvent) => {
+      const handler = (e: MediaQueryListEvent): void => {
         if (useStore.getState().settings.theme === 'system') {
           root.setAttribute('data-theme', e.matches ? 'deep-space' : 'light')
         }
@@ -51,15 +53,15 @@ function App(): React.ReactNode {
     })
 
     // Download events
-    const unsubProgress = window.api.onDownloadProgress((data: any) => {
-      useStore.getState().updateJob(data.id, data)
-    })
-    const unsubCompleted = window.api.onDownloadCompleted((data: any) => {
-      useStore.getState().updateJob(data.id, data)
-    })
-    const unsubError = window.api.onDownloadError((data: any) => {
-      useStore.getState().updateJob(data.id, data)
-    })
+    const applyJobUpdate = (data: unknown): void => {
+      if (!data || typeof data !== 'object' || !('id' in data)) return
+      const payload = data as JobUpdatePayload
+      useStore.getState().updateJob(payload.id, payload)
+    }
+
+    const unsubProgress = window.api.onDownloadProgress(applyJobUpdate)
+    const unsubCompleted = window.api.onDownloadCompleted(applyJobUpdate)
+    const unsubError = window.api.onDownloadError(applyJobUpdate)
 
     return () => {
       unsub()

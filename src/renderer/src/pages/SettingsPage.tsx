@@ -1,9 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactElement } from 'react'
 import { useStore } from '../store'
-import type { MediaFormat, AudioQuality, VideoQuality } from '@shared/types/download'
+import type { MediaFormat, AudioQuality, VideoQuality, AppConfig } from '@shared/types/download'
 import { useTranslation } from '../i18n'
 
-function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean) => void }) {
+function Toggle({
+  checked,
+  onChange
+}: {
+  checked: boolean
+  onChange: (v: boolean) => void
+}): ReactElement {
   return (
     <label className="toggle">
       <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} />
@@ -12,7 +18,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
   )
 }
 
-export default function SettingsPage() {
+export default function SettingsPage(): ReactElement {
   const settings = useStore((s) => s.settings)
   const updateSettings = useStore((s) => s.updateSettings)
   const t = useTranslation(settings.language)
@@ -23,10 +29,14 @@ export default function SettingsPage() {
     ffmpeg: boolean
     ffmpegVersion?: string
   } | null>(null)
+  const [showArgsTooltip, setShowArgsTooltip] = useState(false)
+  const [argsTooltipPinned, setArgsTooltipPinned] = useState(false)
   const [updateMsg, setUpdateMsg] = useState('')
   const [isUpdating, setIsUpdating] = useState(false)
+  const [customSubLang, setCustomSubLang] = useState(false)
 
   const [showPresetForm, setShowPresetForm] = useState(false)
+  const [editingPresetId, setEditingPresetId] = useState<string | null>(null)
   const [presetForm, setPresetForm] = useState({
     name: '',
     emoji: '🔥',
@@ -41,7 +51,7 @@ export default function SettingsPage() {
     })
   }, [])
 
-  const handleUpdate = async () => {
+  const handleUpdate = async (): Promise<void> => {
     setIsUpdating(true)
     setUpdateMsg('')
     const res = await window.api.checkAndUpdateBinaries()
@@ -99,7 +109,7 @@ export default function SettingsPage() {
             <select
               className="input"
               value={settings.theme}
-              onChange={(e) => updateSettings({ theme: e.target.value as any })}
+              onChange={(e) => updateSettings({ theme: e.target.value as AppConfig['theme'] })}
             >
               <option value="system">{t('themeSystem')}</option>
               <option value="deep-space">{t('themeDeepSpace')}</option>
@@ -239,6 +249,13 @@ export default function SettingsPage() {
                 onChange={(v) => updateSettings({ embedSubtitles: v })}
               />
             </div>
+            <div className="toggle-wrap">
+              <span style={{ fontSize: 13 }}>{t('embedLyrics')}</span>
+              <Toggle
+                checked={settings.embedLyrics}
+                onChange={(v) => updateSettings({ embedLyrics: v })}
+              />
+            </div>
             <div style={{ marginTop: 10 }}>
               <label
                 style={{
@@ -250,12 +267,81 @@ export default function SettingsPage() {
               >
                 {t('subsLang')}
               </label>
-              <input
-                className="input"
-                value={settings.subtitleLanguage}
-                onChange={(e) => updateSettings({ subtitleLanguage: e.target.value })}
-                placeholder="ru, en, de..."
-              />
+              {!customSubLang ? (
+                <select
+                  className="input"
+                  value={
+                    [
+                      'orig',
+                      'en',
+                      'ru',
+                      'es',
+                      'fr',
+                      'de',
+                      'ja',
+                      'ko',
+                      'zh',
+                      'ar',
+                      'pt',
+                      'it'
+                    ].includes(settings.subtitleLanguage)
+                      ? settings.subtitleLanguage
+                      : 'other'
+                  }
+                  onChange={(e) => {
+                    if (e.target.value === 'other') {
+                      setCustomSubLang(true)
+                    } else {
+                      updateSettings({ subtitleLanguage: e.target.value })
+                    }
+                  }}
+                >
+                  <option value="orig">{t('subsLangOrig')}</option>
+                  <option value="en">English</option>
+                  <option value="ru">Русский</option>
+                  <option value="es">Español</option>
+                  <option value="fr">Français</option>
+                  <option value="de">Deutsch</option>
+                  <option value="ja">日本語</option>
+                  <option value="ko">한국어</option>
+                  <option value="zh">中文</option>
+                  <option value="ar">العربية</option>
+                  <option value="pt">Português</option>
+                  <option value="it">Italiano</option>
+                  <option value="other">{t('subsLangOther')}</option>
+                </select>
+              ) : (
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    className="input"
+                    style={{ flex: 1 }}
+                    value={settings.subtitleLanguage}
+                    onChange={(e) => updateSettings({ subtitleLanguage: e.target.value })}
+                    placeholder={t('subsLangPlaceholder')}
+                    autoFocus
+                  />
+                  <button
+                    className="btn btn-ghost"
+                    style={{ padding: '0 12px', fontSize: 12 }}
+                    onClick={() => {
+                      setCustomSubLang(false)
+                      updateSettings({ subtitleLanguage: 'orig' })
+                    }}
+                  >
+                    ✕
+                  </button>
+                </div>
+              )}
+              <p
+                style={{
+                  color: 'var(--text-muted)',
+                  fontSize: 12,
+                  marginTop: 8,
+                  lineHeight: 1.6
+                }}
+              >
+                {t('subsLangInfo')}
+              </p>
             </div>
           </>
         )}
@@ -305,9 +391,59 @@ export default function SettingsPage() {
             <option value="vivaldi">Vivaldi</option>
             <option value="safari">Safari</option>
           </select>
-          <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 4 }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 6, lineHeight: 1.5 }}>
             {t('useCookiesWarn')}
           </p>
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <label
+            style={{
+              color: 'var(--text-secondary)',
+              fontSize: 11,
+              display: 'block',
+              marginBottom: 6
+            }}
+          >
+            {t('manualCookies')}
+          </label>
+          <textarea
+            className="input"
+            value={settings.cookiesManual}
+            onChange={(e) => updateSettings({ cookiesManual: e.target.value })}
+            placeholder={t('manualCookiesPlaceholder')}
+            rows={6}
+            style={{ resize: 'vertical', minHeight: 120, fontFamily: 'monospace' }}
+          />
+          <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 8, lineHeight: 1.5 }}>
+            {t('manualCookiesHint')}
+          </p>
+          <div
+            style={{
+              marginTop: 10,
+              padding: 10,
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: 'rgba(255,255,255,0.02)'
+            }}
+          >
+            <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+              {t('manualCookiesHowToTitle')}
+            </p>
+            <ol
+              style={{
+                margin: 0,
+                paddingLeft: 18,
+                color: 'var(--text-muted)',
+                fontSize: 12,
+                lineHeight: 1.6
+              }}
+            >
+              <li>{t('manualCookiesHowTo1')}</li>
+              <li>{t('manualCookiesHowTo2')}</li>
+              <li>{t('manualCookiesHowTo3')}</li>
+              <li>{t('manualCookiesHowTo4')}</li>
+            </ol>
+          </div>
         </div>
       </section>
 
@@ -319,7 +455,7 @@ export default function SettingsPage() {
         <div className="toggle-wrap">
           <div>
             <p style={{ fontSize: 13 }}>{t('autoDetect')}</p>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.5 }}>
               {t('autoDetectDesc')}
             </p>
           </div>
@@ -337,13 +473,15 @@ export default function SettingsPage() {
       <section className="glass-panel" style={{ padding: 20 }}>
         <div className="flex justify-between items-center" style={{ marginBottom: 16 }}>
           <p className="heading-sm">{t('presetsSec')}</p>
-          <button
-            className="btn btn-ghost"
-            style={{ padding: '4px 8px', fontSize: 12 }}
-            onClick={() => setShowPresetForm(!showPresetForm)}
-          >
-            {showPresetForm ? t('cancelBtn') : t('addPreset')}
-          </button>
+          {!showPresetForm && (
+            <button
+              className="btn btn-ghost"
+              style={{ padding: '4px 8px', fontSize: 12 }}
+              onClick={() => setShowPresetForm(true)}
+            >
+              {t('addPreset')}
+            </button>
+          )}
         </div>
 
         {showPresetForm && (
@@ -370,7 +508,14 @@ export default function SettingsPage() {
                 placeholder="Preset Name (e.g. Podcast Audio)"
               />
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns:
+                  presetForm.format === 'audio+video' ? '1fr 1fr 1fr' : '1fr 1fr',
+                gap: 12
+              }}
+            >
               <div>
                 <label
                   style={{
@@ -394,88 +539,145 @@ export default function SettingsPage() {
                   <option value="audio+video">Audio + Video</option>
                 </select>
               </div>
-              <div>
-                <label
-                  style={{
-                    color: 'var(--text-secondary)',
-                    fontSize: 11,
-                    display: 'block',
-                    marginBottom: 6
-                  }}
-                >
-                  AUDIO
-                </label>
-                <select
-                  className="input"
-                  value={presetForm.audioQuality}
-                  onChange={(e) =>
-                    setPresetForm((p) => ({ ...p, audioQuality: e.target.value as AudioQuality }))
-                  }
-                >
-                  <option value="best">Best</option>
-                  <option value="320k">320kbps</option>
-                  <option value="128k">128kbps</option>
-                </select>
-              </div>
-              <div>
-                <label
-                  style={{
-                    color: 'var(--text-secondary)',
-                    fontSize: 11,
-                    display: 'block',
-                    marginBottom: 6
-                  }}
-                >
-                  VIDEO
-                </label>
-                <select
-                  className="input"
-                  value={presetForm.videoQuality}
-                  onChange={(e) =>
-                    setPresetForm((p) => ({ ...p, videoQuality: e.target.value as VideoQuality }))
-                  }
-                >
-                  <option value="best">Best</option>
-                  <option value="2160p">4K (2160p)</option>
-                  <option value="1080p">FHD (1080p)</option>
-                  <option value="720p">HD (720p)</option>
-                </select>
-              </div>
+              {presetForm.format !== 'video' && (
+                <div>
+                  <label
+                    style={{
+                      color: 'var(--text-secondary)',
+                      fontSize: 11,
+                      display: 'block',
+                      marginBottom: 6
+                    }}
+                  >
+                    AUDIO
+                  </label>
+                  <select
+                    className="input"
+                    value={presetForm.audioQuality}
+                    onChange={(e) =>
+                      setPresetForm((p) => ({ ...p, audioQuality: e.target.value as AudioQuality }))
+                    }
+                  >
+                    <option value="best">Best</option>
+                    <option value="flac">FLAC (Lossless)</option>
+                    <option value="320k">320kbps (MP3)</option>
+                    <option value="256k">256kbps (MP3)</option>
+                    <option value="192k">192kbps (MP3)</option>
+                    <option value="128k">128kbps (MP3)</option>
+                    <option value="96k">96kbps (MP3)</option>
+                    <option value="opus">Opus</option>
+                    <option value="aac">AAC</option>
+                  </select>
+                </div>
+              )}
+              {presetForm.format !== 'audio' && (
+                <div>
+                  <label
+                    style={{
+                      color: 'var(--text-secondary)',
+                      fontSize: 11,
+                      display: 'block',
+                      marginBottom: 6
+                    }}
+                  >
+                    VIDEO
+                  </label>
+                  <select
+                    className="input"
+                    value={presetForm.videoQuality}
+                    onChange={(e) =>
+                      setPresetForm((p) => ({ ...p, videoQuality: e.target.value as VideoQuality }))
+                    }
+                  >
+                    <option value="best">Best</option>
+                    <option value="4320p">8K (4320p)</option>
+                    <option value="2160p">4K (2160p)</option>
+                    <option value="1440p">2K (1440p)</option>
+                    <option value="1080p">FHD (1080p)</option>
+                    <option value="720p">HD (720p)</option>
+                    <option value="480p">SD (480p)</option>
+                    <option value="360p">360p</option>
+                    <option value="240p">240p</option>
+                    <option value="144p">144p</option>
+                  </select>
+                </div>
+              )}
             </div>
-            <button
-              className="btn btn-primary"
-              style={{ marginTop: 12, width: '100%', fontSize: 12, padding: '8px 0' }}
-              onClick={() => {
-                if (!presetForm.name.trim()) return
-                const newPreset = {
-                  id: window.api.generateId(),
-                  name: presetForm.name,
-                  emoji: presetForm.emoji || '⚡',
-                  options: {
-                    format: presetForm.format,
-                    audioQuality: presetForm.audioQuality,
-                    videoQuality: presetForm.videoQuality
+            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+              <button
+                className="btn btn-ghost"
+                style={{ flex: 1, fontSize: 12, padding: '8px 0' }}
+                onClick={() => {
+                  setShowPresetForm(false)
+                  setEditingPresetId(null)
+                  setPresetForm({
+                    name: '',
+                    emoji: '🔥',
+                    format: 'audio+video',
+                    audioQuality: 'best',
+                    videoQuality: '1080p'
+                  })
+                }}
+              >
+                {t('cancelBtn')}
+              </button>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 1, fontSize: 12, padding: '8px 0' }}
+                onClick={() => {
+                  if (!presetForm.name.trim()) return
+                  if (editingPresetId) {
+                    // Editing existing preset
+                    updateSettings({
+                      presets: settings.presets.map((p) =>
+                        p.id === editingPresetId
+                          ? {
+                              ...p,
+                              name: presetForm.name,
+                              emoji: presetForm.emoji || '⚡',
+                              options: {
+                                format: presetForm.format,
+                                audioQuality: presetForm.audioQuality,
+                                videoQuality: presetForm.videoQuality
+                              }
+                            }
+                          : p
+                      )
+                    })
+                  } else {
+                    // Creating new preset
+                    const newPreset = {
+                      id: window.api.generateId(),
+                      name: presetForm.name,
+                      emoji: presetForm.emoji || '⚡',
+                      options: {
+                        format: presetForm.format,
+                        audioQuality: presetForm.audioQuality,
+                        videoQuality: presetForm.videoQuality
+                      }
+                    }
+                    updateSettings({ presets: [...settings.presets, newPreset] })
                   }
-                }
-                updateSettings({ presets: [...settings.presets, newPreset] })
-                setShowPresetForm(false)
-                setPresetForm({
-                  name: '',
-                  emoji: '🔥',
-                  format: 'audio+video',
-                  audioQuality: 'best',
-                  videoQuality: '1080p'
-                })
-              }}
-            >
-              {t('savePreset')}
-            </button>
+                  setShowPresetForm(false)
+                  setEditingPresetId(null)
+                  setPresetForm({
+                    name: '',
+                    emoji: '🔥',
+                    format: 'audio+video',
+                    audioQuality: 'best',
+                    videoQuality: '1080p'
+                  })
+                }}
+              >
+                {t('savePreset')}
+              </button>
+            </div>
           </div>
         )}
 
         <div className="flex flex-col gap-8">
           {settings.presets.length === 0 ? (
-            <p style={{ color: 'var(--text-muted)', fontSize: 13, fontStyle: 'italic' }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 14, fontStyle: 'italic' }}>
               {t('noPresets')}
             </p>
           ) : (
@@ -492,20 +694,51 @@ export default function SettingsPage() {
                 <div>
                   <span style={{ marginRight: 8, fontSize: 18 }}>{preset.emoji}</span>
                   <span style={{ fontSize: 13, fontWeight: 500 }}>{preset.name}</span>
-                  <p style={{ color: 'var(--text-muted)', fontSize: 11, marginTop: 4 }}>
-                    {preset.options.format} • Audio: {preset.options.audioQuality} • Video:{' '}
-                    {preset.options.videoQuality}
+                  <p
+                    style={{
+                      color: 'var(--text-muted)',
+                      fontSize: 12,
+                      marginTop: 6,
+                      lineHeight: 1.5
+                    }}
+                  >
+                    {preset.options.format}
+                    {preset.options.format !== 'video' &&
+                      ` • Audio: ${preset.options.audioQuality}`}
+                    {preset.options.format !== 'audio' &&
+                      ` • Video: ${preset.options.videoQuality}`}
                   </p>
                 </div>
-                <button
-                  className="btn btn-danger"
-                  style={{ padding: '4px 8px', fontSize: 11 }}
-                  onClick={() =>
-                    updateSettings({ presets: settings.presets.filter((p) => p.id !== preset.id) })
-                  }
-                >
-                  {t('deleteBtn')}
-                </button>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    className="btn btn-ghost"
+                    style={{ padding: '4px 8px', fontSize: 11 }}
+                    onClick={() => {
+                      setEditingPresetId(preset.id)
+                      setPresetForm({
+                        name: preset.name,
+                        emoji: preset.emoji,
+                        format: preset.options.format || 'audio+video',
+                        audioQuality: preset.options.audioQuality || 'best',
+                        videoQuality: preset.options.videoQuality || '1080p'
+                      })
+                      setShowPresetForm(true)
+                    }}
+                  >
+                    {t('editBtn')}
+                  </button>
+                  <button
+                    className="btn btn-danger"
+                    style={{ padding: '4px 8px', fontSize: 11 }}
+                    onClick={() =>
+                      updateSettings({
+                        presets: settings.presets.filter((p) => p.id !== preset.id)
+                      })
+                    }
+                  >
+                    {t('deleteBtn')}
+                  </button>
+                </div>
               </div>
             ))
           )}
@@ -518,16 +751,142 @@ export default function SettingsPage() {
           {t('advancedSec')}
         </p>
         <div style={{ marginBottom: 14 }}>
-          <label
+          <div
             style={{
-              color: 'var(--text-secondary)',
-              fontSize: 11,
-              display: 'block',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
               marginBottom: 6
             }}
           >
-            {t('customArgs')}
-          </label>
+            <label
+              style={{
+                color: 'var(--text-secondary)',
+                fontSize: 11,
+                display: 'block'
+              }}
+            >
+              {t('customArgs')}
+            </label>
+            <div
+              style={{
+                position: 'relative',
+                display: 'inline-flex',
+                alignItems: 'center'
+              }}
+            >
+              <div
+                style={{
+                  width: 16,
+                  height: 16,
+                  borderRadius: '50%',
+                  border: '1.5px solid var(--accent)',
+                  color: 'var(--accent)',
+                  fontSize: 11,
+                  fontWeight: 700,
+                  fontStyle: 'italic',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                  userSelect: 'none'
+                }}
+                onClick={() => {
+                  setArgsTooltipPinned(!argsTooltipPinned)
+                  setShowArgsTooltip(!argsTooltipPinned)
+                }}
+                onMouseEnter={(e) => {
+                  if (!argsTooltipPinned) setShowArgsTooltip(true)
+                  e.currentTarget.style.backgroundColor = 'var(--accent)'
+                  e.currentTarget.style.color = 'var(--bg)'
+                }}
+                onMouseLeave={(e) => {
+                  if (!argsTooltipPinned) setShowArgsTooltip(false)
+                  e.currentTarget.style.backgroundColor = 'transparent'
+                  e.currentTarget.style.color = 'var(--accent)'
+                }}
+              >
+                i
+              </div>
+              {showArgsTooltip && (
+                <div
+                  className="glass-panel"
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    bottom: '100%',
+                    marginBottom: 8,
+                    padding: 18,
+                    minWidth: 520,
+                    maxWidth: 620,
+                    zIndex: 1000,
+                    fontSize: 13,
+                    lineHeight: 1.8
+                  }}
+                  onMouseEnter={() => {
+                    if (!argsTooltipPinned) setShowArgsTooltip(true)
+                  }}
+                  onMouseLeave={() => {
+                    if (!argsTooltipPinned) setShowArgsTooltip(false)
+                  }}
+                >
+                  <div
+                    style={{
+                      fontWeight: 600,
+                      color: 'var(--accent)',
+                      marginBottom: 12,
+                      fontSize: 14
+                    }}
+                  >
+                    {t('customArgsInfo')}
+                  </div>
+                  <div style={{ color: 'var(--text-secondary)', marginBottom: 10 }}>
+                    {t('customArgsExamples')
+                      .split('\n\n')[0]
+                      .split('\n')
+                      .map((line, i) => (
+                        <div key={i} style={{ marginBottom: i === 0 ? 4 : 2 }}>
+                          {line}
+                        </div>
+                      ))}
+                  </div>
+                  <div style={{ color: 'var(--text-secondary)', marginBottom: 12 }}>
+                    {settings.language === 'ru' ? 'Полный список' : 'Full list'}:{' '}
+                    <a
+                      href="https://github.com/yt-dlp/yt-dlp#usage-and-options"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        color: 'var(--accent)',
+                        textDecoration: 'none',
+                        fontSize: 13,
+                        transition: 'opacity 0.2s ease'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.opacity = '0.7'
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.opacity = '1'
+                      }}
+                    >
+                      github.com/yt-dlp/yt-dlp#usage-and-options
+                    </a>
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 11,
+                      color: '#fbbf24',
+                      fontStyle: 'italic',
+                      opacity: 0.9
+                    }}
+                  >
+                    {t('customArgsTooltip')}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
           <input
             className="input"
             value={settings.customArgs}
@@ -535,10 +894,13 @@ export default function SettingsPage() {
             placeholder="--proxy socks5://127.0.0.1:1080"
           />
         </div>
+        {/* Portable mode - hidden until implemented
         <div className="toggle-wrap">
           <div>
             <p style={{ fontSize: 13 }}>{t('portableMode')}</p>
-            <p style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
+            <p
+              style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.4 }}
+            >
               {t('portableModeDesc')}
             </p>
           </div>
@@ -547,6 +909,7 @@ export default function SettingsPage() {
             onChange={(v) => updateSettings({ portableMode: v })}
           />
         </div>
+        */}
       </section>
 
       {/* Binaries */}
@@ -554,6 +917,18 @@ export default function SettingsPage() {
         <p className="heading-sm" style={{ marginBottom: 16 }}>
           {t('componentsSec')}
         </p>
+        <div className="toggle-wrap" style={{ marginBottom: 16 }}>
+          <div>
+            <p style={{ fontSize: 13 }}>{t('autoCheckUpdates')}</p>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4, lineHeight: 1.4 }}>
+              {t('autoCheckUpdatesDesc')}
+            </p>
+          </div>
+          <Toggle
+            checked={settings.autoCheckUpdates}
+            onChange={(v) => updateSettings({ autoCheckUpdates: v })}
+          />
+        </div>
         {binaryStatus && (
           <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div className="flex items-center gap-8">
@@ -561,7 +936,7 @@ export default function SettingsPage() {
                 yt-dlp {binaryStatus.ytdlp ? '✓' : '✗'}
               </span>
               {binaryStatus.ytdlpVersion && (
-                <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                   {binaryStatus.ytdlpVersion}
                 </span>
               )}
@@ -571,7 +946,7 @@ export default function SettingsPage() {
                 ffmpeg {binaryStatus.ffmpeg ? '✓' : '✗'}
               </span>
               {binaryStatus.ffmpegVersion && (
-                <span style={{ color: 'var(--text-muted)', fontSize: 11 }}>
+                <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
                   {binaryStatus.ffmpegVersion}
                 </span>
               )}

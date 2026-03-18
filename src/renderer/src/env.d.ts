@@ -10,7 +10,8 @@ interface Window {
     // Other API methods already present
     fetchMetadata: (
       url: string,
-      cookiesFromBrowser?: string
+      cookiesFromBrowser?: string,
+      cookiesManual?: string
     ) => Promise<{
       success: boolean
       data?: import('@shared/types/download').VideoMetadata
@@ -41,9 +42,9 @@ interface Window {
     openImageDialog: () => Promise<{ success: boolean; data?: string; error?: string }>
 
     // Events
-    onDownloadProgress: (callback: (data: any) => void) => () => void
-    onDownloadCompleted: (callback: (data: any) => void) => () => void
-    onDownloadError: (callback: (data: any) => void) => () => void
+    onDownloadProgress: (callback: (data: unknown) => void) => () => void
+    onDownloadCompleted: (callback: (data: unknown) => void) => () => void
+    onDownloadError: (callback: (data: unknown) => void) => () => void
     onClipboardLink: (callback: (url: string) => void) => () => void
 
     // Utilities

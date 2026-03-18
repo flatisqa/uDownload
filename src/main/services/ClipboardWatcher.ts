@@ -1,4 +1,5 @@
 import { EventEmitter } from 'events'
+import { clipboard } from 'electron'
 
 export class ClipboardWatcher extends EventEmitter {
   private interval: NodeJS.Timeout | null = null
@@ -9,10 +10,9 @@ export class ClipboardWatcher extends EventEmitter {
   private static URL_RE =
     /https?:\/\/(www\.|music\.|m\.)?(youtube\.com\/(watch|shorts|live|playlist|v\/)|youtu\.be\/|soundcloud\.com|vimeo\.com|twitter\.com|x\.com|twitch\.tv|tiktok\.com|instagram\.com|reddit\.com\/r\/)[^\s"')>]*/
 
-  start() {
+  start(): void {
     if (this.interval) return
     this.enabled = true
-    const { clipboard } = require('electron')
     this.interval = setInterval(() => {
       if (!this.enabled) return
       try {
@@ -34,7 +34,7 @@ export class ClipboardWatcher extends EventEmitter {
     }, 1000)
   }
 
-  stop() {
+  stop(): void {
     if (this.interval) {
       clearInterval(this.interval)
       this.interval = null
@@ -42,7 +42,7 @@ export class ClipboardWatcher extends EventEmitter {
     this.enabled = false
   }
 
-  setEnabled(enabled: boolean) {
+  setEnabled(enabled: boolean): void {
     if (enabled) this.start()
     else this.stop()
   }

@@ -1,8 +1,9 @@
+import type { ReactElement } from 'react'
 import { useStore } from '../store'
 import type { DownloadJob, DownloadStatus } from '@shared/types/download'
 import { useTranslation } from '../i18n'
 
-function statusBadgeClass(s: DownloadStatus) {
+function statusBadgeClass(s: DownloadStatus): string {
   const map: Record<DownloadStatus, string> = {
     idle: 'badge-pending',
     fetching_meta: 'badge-pending',
@@ -18,7 +19,7 @@ function statusBadgeClass(s: DownloadStatus) {
   return map[s] || 'badge-pending'
 }
 
-function statusLabel(s: DownloadStatus, t: any) {
+function statusLabel(s: DownloadStatus, t: ReturnType<typeof useTranslation>): string {
   const map: Record<DownloadStatus, string> = {
     idle: t('statusIdle'),
     fetching_meta: t('statusFetching'),
@@ -34,7 +35,7 @@ function statusLabel(s: DownloadStatus, t: any) {
   return map[s] || s
 }
 
-function progressBarClass(s: DownloadStatus) {
+function progressBarClass(s: DownloadStatus): string {
   if (s === 'starting') return 'starting' // Will use CSS to animate it if needed
   if (s === 'converting') return 'converting'
   if (s === 'done') return 'done'
@@ -42,18 +43,27 @@ function progressBarClass(s: DownloadStatus) {
   return ''
 }
 
-function JobCard({ job }: { job: DownloadJob }) {
+function JobCard({ job }: { job: DownloadJob }): ReactElement {
   const settings = useStore((s) => s.settings)
   const updateJob = useStore((s) => s.updateJob)
   const removeJob = useStore((s) => s.removeJob)
   const t = useTranslation(settings.language)
 
-  const handleCancel = async () => {
+  const handleCancel = async (): Promise<void> => {
     await window.api.cancelDownload(job.id)
     updateJob(job.id, { status: 'cancelled' })
   }
 
-  const handleOpenFolder = () => {
+  const handleRetry = async (): Promise<void> => {
+    // Reset job status and restart download
+    updateJob(job.id, { status: 'pending', error: undefined, progress: 0 })
+    const res = await window.api.startDownload(job.url, job.options)
+    if (!res.success) {
+      updateJob(job.id, { status: 'error', error: res.error || 'Failed to restart download' })
+    }
+  }
+
+  const handleOpenFolder = (): void => {
     if (job.finalFilePath) {
       window.api.showInFolder(job.finalFilePath)
     } else if (job.outputPath) {
@@ -67,6 +77,24 @@ function JobCard({ job }: { job: DownloadJob }) {
   const isDone = job.status === 'done'
   const isError = job.status === 'error'
   const showProgress = isActive && job.status !== 'pending'
+  const downloadedFileName = job.finalFilePath?.split(/[\\/]/).pop() ?? ''
+  const downloadedExt = downloadedFileName.includes('.')
+    ? downloadedFileName.split('.').pop()?.toUpperCase()
+    : undefined
+  const expectedExt =
+    job.options.format === 'audio'
+      ? job.options.audioQuality === 'flac'
+        ? 'FLAC'
+        : job.options.audioQuality === 'aac'
+          ? 'AAC'
+          : job.options.audioQuality === 'opus' || job.options.audioQuality === 'best'
+            ? 'OPUS'
+            : 'MP3'
+      : job.options.format === 'video'
+        ? 'MP4'
+        : 'MKV'
+  const currentFormat = downloadedExt || expectedExt
+  const showInlineMeta = ['starting', 'downloading', 'converting', 'done'].includes(job.status)
 
   return (
     <div
@@ -99,12 +127,20 @@ function JobCard({ job }: { job: DownloadJob }) {
           {job.metadata?.author && (
             <p style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{job.metadata.author}</p>
           )}
-          <span
-            className={`badge ${statusBadgeClass(job.status)}`}
-            style={{ alignSelf: 'flex-start', marginTop: 2 }}
-          >
-            {statusLabel(job.status, t)}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+            <span className={`badge ${statusBadgeClass(job.status)}`}>
+              {statusLabel(job.status, t)}
+            </span>
+            {showInlineMeta && (
+              <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
+                {currentFormat && (
+                  <span style={{ color: 'var(--accent)', fontWeight: 600 }}>{currentFormat}</span>
+                )}
+                {currentFormat && job.size && <span style={{ opacity: 0.4 }}>·</span>}
+                {job.size && <span style={{ color: 'var(--text-secondary)' }}>{job.size}</span>}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Action buttons — always on the right */}
@@ -133,6 +169,15 @@ function JobCard({ job }: { job: DownloadJob }) {
               onClick={handleOpenFolder}
             >
               {t('openFolder')}
+            </button>
+          )}
+          {isError && (
+            <button
+              className="btn btn-primary"
+              style={{ padding: '4px 12px', fontSize: 11 }}
+              onClick={handleRetry}
+            >
+              {t('retryBtn')}
             </button>
           )}
           {(isDone || isError || job.status === 'cancelled') && (
@@ -196,7 +241,7 @@ function JobCard({ job }: { job: DownloadJob }) {
   )
 }
 
-export default function QueuePage() {
+export default function QueuePage(): ReactElement {
   const jobs = useStore((s) => s.jobs)
   const settings = useStore((s) => s.settings)
   const clearCompleted = useStore((s) => s.clearCompleted)

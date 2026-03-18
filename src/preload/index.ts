@@ -7,8 +7,8 @@ import type { DownloadOptions } from '@shared/types/download'
 // ────────────────────────────────────────────────
 const api = {
   // Metadata
-  fetchMetadata: (url: string, cookiesFromBrowser?: string) =>
-    ipcRenderer.invoke('download:fetchMetadata', url, cookiesFromBrowser),
+  fetchMetadata: (url: string, cookiesFromBrowser?: string, cookiesManual?: string) =>
+    ipcRenderer.invoke('download:fetchMetadata', url, cookiesFromBrowser, cookiesManual),
 
   // Downloads
   startDownload: (url: string, options: DownloadOptions) =>
@@ -36,26 +36,26 @@ const api = {
   openImageDialog: () => ipcRenderer.invoke('dialog:openImage'),
 
   // Event listeners (main → renderer push events)
-  onDownloadProgress: (callback: (data: object) => void) => {
-    const handler = (_: Electron.IpcRendererEvent, data: object) => callback(data)
+  onDownloadProgress: (callback: (data: object) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, data: object): void => callback(data)
     ipcRenderer.on('download:progress', handler)
     return () => ipcRenderer.removeListener('download:progress', handler)
   },
 
-  onDownloadCompleted: (callback: (data: object) => void) => {
-    const handler = (_: Electron.IpcRendererEvent, data: object) => callback(data)
+  onDownloadCompleted: (callback: (data: object) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, data: object): void => callback(data)
     ipcRenderer.on('download:completed', handler)
     return () => ipcRenderer.removeListener('download:completed', handler)
   },
 
-  onDownloadError: (callback: (data: object) => void) => {
-    const handler = (_: Electron.IpcRendererEvent, data: object) => callback(data)
+  onDownloadError: (callback: (data: object) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, data: object): void => callback(data)
     ipcRenderer.on('download:error', handler)
     return () => ipcRenderer.removeListener('download:error', handler)
   },
 
-  onClipboardLink: (callback: (url: string) => void) => {
-    const handler = (_: Electron.IpcRendererEvent, url: string) => callback(url)
+  onClipboardLink: (callback: (url: string) => void): (() => void) => {
+    const handler = (_: Electron.IpcRendererEvent, url: string): void => callback(url)
     ipcRenderer.on('clipboard:linkDetected', handler)
     return () => ipcRenderer.removeListener('clipboard:linkDetected', handler)
   },

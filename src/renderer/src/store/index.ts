@@ -18,6 +18,6 @@ export const useStore = create<AppStore>()(
 )
 
 // Point selectors — per zustand-store skill (no full store destructuring)
-export const useJobs = () => useStore((s) => s.jobs)
-export const useSettings = () => useStore((s) => s.settings)
-export const useSettingsLoaded = () => useStore((s) => s.isLoaded)
+export const useJobs = (): AppStore['jobs'] => useStore((s) => s.jobs)
+export const useSettings = (): AppStore['settings'] => useStore((s) => s.settings)
+export const useSettingsLoaded = (): AppStore['isLoaded'] => useStore((s) => s.isLoaded)

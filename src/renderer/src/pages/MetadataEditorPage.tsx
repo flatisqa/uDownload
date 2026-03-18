@@ -1,3 +1,4 @@
+import type { ReactElement } from 'react'
 import { useStore } from '../store'
 import { useTranslation } from '../i18n'
 
@@ -5,7 +6,9 @@ interface MetadataEditorPageProps {
   onBack: () => void
 }
 
-export default function MetadataEditorPage({ onBack }: MetadataEditorPageProps) {
+export default function MetadataEditorPage({
+  onBack
+}: MetadataEditorPageProps): ReactElement | null {
   const meta = useStore((s) => s.meta)
   const customTitle = useStore((s) => s.customTitle)
   const setCustomTitle = useStore((s) => s.setCustomTitle)
@@ -22,8 +25,7 @@ export default function MetadataEditorPage({ onBack }: MetadataEditorPageProps) 
   const customDescription = useStore((s) => s.customDescription)
   const setCustomDescription = useStore((s) => s.setCustomDescription)
 
-  const handleChooseThumbnail = async () => {
-    // @ts-ignore
+  const handleChooseThumbnail = async (): Promise<void> => {
     const res = await window.api.openImageDialog()
     if (res.success && res.data) {
       setCustomThumbnail(res.data)
