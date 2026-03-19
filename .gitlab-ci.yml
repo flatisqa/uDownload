@@ -28,7 +28,7 @@ build:linux:
   <<: *npm_cache
   before_script:
     - apt-get update
-    - apt-get install -y fakeroot dpkg rpm snapcraft
+    - apt-get install -y fakeroot dpkg
   script:
     - npm ci --cache .npm --prefer-offline
     - npm run build:linux
@@ -36,8 +36,6 @@ build:linux:
     paths:
       - dist/*.AppImage
       - dist/*.deb
-      - dist/*.snap
-      - dist/*.rpm
     expire_in: 1 week
 
 # Windows Build
