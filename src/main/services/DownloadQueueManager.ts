@@ -320,8 +320,7 @@ export class DownloadQueueManager extends EventEmitter {
             status,
             progress,
             size: size,
-            speed: speed,
-            eta: time
+            speed: speed
           })
           continue
         }
