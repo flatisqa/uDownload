@@ -1,29 +1,56 @@
+# ============================================================================
+# GitHub Actions Workflow для uDowload
+# Автоматически собирает приложение для Linux, Windows и macOS
+# ============================================================================
+
 name: Build uDowload
 
+# ----------------------------------------------------------------------------
+# ТРИГГЕРЫ (когда запускать сборку)
+# ----------------------------------------------------------------------------
 on:
+  # Автоматически при пуше в main
   push:
-    branches: [main, dev]
+    branches: [main]  # Только main, НЕ dev
     tags:
-      - 'v*'  # При создании тега v1.0.0, v2.0.0 и т.д.
+      - 'v*'  # И при создании тега v1.0.0, v2.0.0 и т.д.
+  
+  # При создании Pull Request в main
   pull_request:
     branches: [main]
+  
+  # Ручной запуск через кнопку в GitHub UI
   workflow_dispatch:
 
+# ----------------------------------------------------------------------------
+# СБОРКА ДЛЯ LINUX
+# ----------------------------------------------------------------------------
 jobs:
   build-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # Ubuntu runner от GitHub (бесплатно)
     steps:
+      # Клонировать код
       - uses: actions/checkout@v4
+      
+      # Установить Node.js 20
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
+          cache: npm  # Кэш npm для ускорения
+      
+      # Установить системные зависимости для сборки .deb пакетов
       - name: Install build dependencies
         run: sudo apt-get update && sudo apt-get install -y fakeroot dpkg
+      
+      # Установить npm зависимости
       - name: Install dependencies
         run: npm ci
+      
+      # Собрать для Linux
       - name: Build for Linux
         run: npm run build:linux
+      
+      # Загрузить артефакты (AppImage, deb)
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -32,8 +59,11 @@ jobs:
             dist/*.AppImage
             dist/*.deb
 
+  # ----------------------------------------------------------------------------
+  # СБОРКА ДЛЯ WINDOWS
+  # ----------------------------------------------------------------------------
   build-windows:
-    runs-on: windows-latest
+    runs-on: windows-latest  # Windows runner от GitHub (бесплатно)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -53,8 +83,11 @@ jobs:
             dist/*.msi
             dist/*.zip
 
+  # ----------------------------------------------------------------------------
+  # СБОРКА ДЛЯ MACOS
+  # ----------------------------------------------------------------------------
   build-macos:
-    runs-on: macos-latest
+    runs-on: macos-latest  # macOS runner от GitHub (бесплатно)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -63,6 +96,7 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      # dmg-license нужен только для создания DMG образов на macOS
       - name: Install dmg-license for macOS
         run: npm install dmg-license
       - name: Build for macOS
@@ -77,19 +111,22 @@ jobs:
 
   # ============================================================================
   # СОЗДАНИЕ РЕЛИЗА (только при создании тега v*)
-  # Собирает все артефакты и создаёт публичный релиз
+  # Зависит от успешной сборки всех платформ
   # ============================================================================
   release:
     needs: [build-linux, build-windows, build-macos]
     runs-on: ubuntu-latest
+    # Выполнять только если это тег вида v1.0.0
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
+      # Скачать все артефакты с предыдущих jobs
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
           path: artifacts
           merge-multiple: true
 
+      # Создать GitHub Release и прикрепить файлы
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -100,7 +137,18 @@ jobs:
             artifacts/*.msi
             artifacts/*.dmg
             artifacts/*.zip
-          draft: false
-          prerelease: false
+          draft: false      # Не черновик, сразу публикуем
+          prerelease: false # Не предварительная версия
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}  # Автоматический токен GitHub
+
+# ----------------------------------------------------------------------------
+# КАК ЭТО РАБОТАЕТ:
+# ----------------------------------------------------------------------------
+# 1. git push origin main          → Запускает сборку Linux/Windows/macOS
+# 2. git tag -a v1.0.0            → Создаёт тег
+#    git push origin v1.0.0        → Собирает всё + создаёт Release
+# 3. Сборки доступны в:
+#    - Actions → вкладка Artifacts (для разработчиков)
+#    - Releases (публично, для пользователей)
+# ----------------------------------------------------------------------------
