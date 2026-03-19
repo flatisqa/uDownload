@@ -3,7 +3,10 @@ import type { DownloadOptions, VideoMetadata, AppConfig } from '@shared/types/do
 
 export interface IElectronAPI {
   fetchMetadata: (
-    url: string
+    url: string,
+    cookiesFromBrowser?: string,
+    cookiesManual?: string,
+    cookiesFilePath?: string
   ) => Promise<{ success: boolean; data?: VideoMetadata; error?: string }>
   startDownload: (
     url: string,
@@ -18,6 +21,7 @@ export interface IElectronAPI {
   toggleClipboard: (enabled: boolean) => Promise<{ success: boolean }>
   openFolderDialog: () => Promise<{ success: boolean; data?: string }>
   openImageDialog: () => Promise<{ success: boolean; data?: string }>
+  openTxtFileDialog: () => Promise<{ success: boolean; data?: string }>
   showInFolder: (path: string) => Promise<void>
   generateId: () => string
   pathExists: (dirPath: string) => Promise<boolean>

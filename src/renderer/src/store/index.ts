@@ -13,7 +13,7 @@ export const useStore = create<AppStore>()(
       ...createSettingsSlice(...a),
       ...createDownloaderSlice(...a)
     }),
-    { name: 'MediaFetchStore' }
+    { name: 'uDowloadStore' }
   )
 )
 

@@ -11,7 +11,8 @@ interface Window {
     fetchMetadata: (
       url: string,
       cookiesFromBrowser?: string,
-      cookiesManual?: string
+      cookiesManual?: string,
+      cookiesFilePath?: string
     ) => Promise<{
       success: boolean
       data?: import('@shared/types/download').VideoMetadata
@@ -40,6 +41,7 @@ interface Window {
     toggleClipboard: (enabled: boolean) => Promise<{ success: boolean; error?: string }>
     openFolderDialog: () => Promise<{ success: boolean; data?: string; error?: string }>
     openImageDialog: () => Promise<{ success: boolean; data?: string; error?: string }>
+    openTxtFileDialog: () => Promise<{ success: boolean; data?: string; error?: string }>
 
     // Events
     onDownloadProgress: (callback: (data: unknown) => void) => () => void

@@ -17,10 +17,10 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // ─── Metadata ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'download:fetchMetadata',
-    async (_e, url: string, cookiesFromBrowser?: string, cookiesManual?: string) => {
+    async (_e, url: string, cookiesFromBrowser?: string, cookiesManual?: string, cookiesFilePath?: string) => {
       try {
-        console.log('[IPC] fetchMetadata called with:', { url, cookiesFromBrowser, cookiesManual })
-        const data = await fetchMetadata(url, cookiesFromBrowser, cookiesManual)
+        console.log('[IPC] fetchMetadata called with:', { url, cookiesFromBrowser, cookiesManual, cookiesFilePath })
+        const data = await fetchMetadata(url, cookiesFromBrowser, cookiesManual, cookiesFilePath)
         console.log('[IPC] fetchMetadata success:', data.title)
         return { success: true, data }
       } catch (error) {
@@ -150,6 +150,19 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
       const result = await dialog.showOpenDialog(mainWindow, {
         properties: ['openFile'],
         filters: [{ name: 'Images', extensions: ['jpg', 'png', 'jpeg', 'webp'] }]
+      })
+      if (result.canceled) return { success: false }
+      return { success: true, data: result.filePaths[0] }
+    } catch (error) {
+      return { success: false, error: String(error) }
+    }
+  })
+
+  ipcMain.handle('dialog:openTxtFile', async () => {
+    try {
+      const result = await dialog.showOpenDialog(mainWindow, {
+        properties: ['openFile'],
+        filters: [{ name: 'Cookies file', extensions: ['txt'] }]
       })
       if (result.canceled) return { success: false }
       return { success: true, data: result.filePaths[0] }

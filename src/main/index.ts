@@ -76,7 +76,7 @@ function createWindow(): BrowserWindow {
 }
 
 app.whenReady().then(async () => {
-  electronApp.setAppUserModelId('com.mediafetch.pro')
+  electronApp.setAppUserModelId('com.udownload.app')
 
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)

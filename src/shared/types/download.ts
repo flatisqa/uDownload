@@ -81,6 +81,7 @@ export interface DownloadOptions {
   embedMetadata: boolean
   cookiesFromBrowser?: string
   cookiesManual?: string
+  cookiesFilePath?: string
   selectedChapters?: string[]
   // Playlist
   playlistAll: boolean
@@ -135,6 +136,7 @@ export interface AppConfig {
   embedMetadata: boolean
   cookiesFromBrowser: string
   cookiesManual: string
+  cookiesFilePath: string
   // Features
   clipboardWatcher: boolean
   portableMode: boolean
@@ -194,6 +196,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   embedMetadata: true,
   cookiesFromBrowser: '',
   cookiesManual: '',
+  cookiesFilePath: '',
   clipboardWatcher: true,
   portableMode: false,
   autoCheckUpdates: true,

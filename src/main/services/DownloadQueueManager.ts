@@ -135,6 +135,7 @@ export class DownloadQueueManager extends EventEmitter {
       embedMetadata: job.options.embedMetadata,
       cookiesFromBrowser: job.options.cookiesFromBrowser,
       cookiesManual: job.options.cookiesManual,
+      cookiesFilePath: job.options.cookiesFilePath,
       selectedChapters: job.options.selectedChapters,
       selectedPlaylistItems: job.options.selectedPlaylistItems,
       timeFrom: job.options.timeFrom,

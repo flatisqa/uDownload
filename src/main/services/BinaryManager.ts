@@ -62,7 +62,7 @@ async function downloadFile(url: string, dest: string): Promise<void> {
     const file = fs.createWriteStream(dest)
     const followRedirect = (u: string): void => {
       https
-        .get(u, { headers: { 'User-Agent': 'MediaFetchPro/1.0' } }, (res) => {
+        .get(u, { headers: { 'User-Agent': 'uDowload/1.0' } }, (res) => {
           if (res.statusCode === 301 || res.statusCode === 302) {
             followRedirect(res.headers.location!)
           } else if (res.statusCode === 200) {
@@ -84,7 +84,7 @@ async function downloadFile(url: string, dest: string): Promise<void> {
 async function getLatestYtdlpTag(): Promise<string> {
   return new Promise((resolve, reject) => {
     https
-      .get(YTDLP_RELEASES_URL, { headers: { 'User-Agent': 'MediaFetchPro/1.0' } }, (res) => {
+      .get(YTDLP_RELEASES_URL, { headers: { 'User-Agent': 'uDowload/1.0' } }, (res) => {
         let data = ''
         res.on('data', (c) => (data += c))
         res.on('end', () => {

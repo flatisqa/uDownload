@@ -7,8 +7,8 @@ import type { DownloadOptions } from '@shared/types/download'
 // ────────────────────────────────────────────────
 const api = {
   // Metadata
-  fetchMetadata: (url: string, cookiesFromBrowser?: string, cookiesManual?: string) =>
-    ipcRenderer.invoke('download:fetchMetadata', url, cookiesFromBrowser, cookiesManual),
+  fetchMetadata: (url: string, cookiesFromBrowser?: string, cookiesManual?: string, cookiesFilePath?: string) =>
+    ipcRenderer.invoke('download:fetchMetadata', url, cookiesFromBrowser, cookiesManual, cookiesFilePath),
 
   // Downloads
   startDownload: (url: string, options: DownloadOptions) =>
@@ -34,6 +34,8 @@ const api = {
   // Folder picker
   openFolderDialog: () => ipcRenderer.invoke('dialog:openFolder'),
   openImageDialog: () => ipcRenderer.invoke('dialog:openImage'),
+
+  openTxtFileDialog: () => ipcRenderer.invoke('dialog:openTxtFile'),
 
   // Event listeners (main → renderer push events)
   onDownloadProgress: (callback: (data: object) => void): (() => void) => {

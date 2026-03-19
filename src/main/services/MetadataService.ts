@@ -56,7 +56,8 @@ function ensureManualCookiesFile(cookiesManual?: string): string | undefined {
 export async function fetchMetadata(
   url: string,
   cookiesFromBrowser?: string,
-  cookiesManual?: string
+  cookiesManual?: string,
+  cookiesFilePath?: string
 ): Promise<VideoMetadata> {
   const bin = getYtdlpBin()
 
@@ -66,11 +67,15 @@ export async function fetchMetadata(
     '--flat-playlist' // for playlists: fast, only get entries info
   ]
 
-  const manualCookiesPath = ensureManualCookiesFile(cookiesManual)
-  if (manualCookiesPath) {
-    args.push('--cookies', manualCookiesPath)
-  } else if (cookiesFromBrowser) {
-    args.push('--cookies-from-browser', cookiesFromBrowser)
+  if (cookiesFilePath && fs.existsSync(cookiesFilePath)) {
+    args.push('--cookies', cookiesFilePath)
+  } else {
+    const manualCookiesPath = ensureManualCookiesFile(cookiesManual)
+    if (manualCookiesPath) {
+      args.push('--cookies', manualCookiesPath)
+    } else if (cookiesFromBrowser) {
+      args.push('--cookies-from-browser', cookiesFromBrowser)
+    }
   }
 
   args.push(url)
@@ -179,6 +184,7 @@ export function buildYtdlpArgs(options: {
   embedMetadata: boolean
   cookiesFromBrowser?: string
   cookiesManual?: string
+  cookiesFilePath?: string
   selectedChapters?: string[]
   selectedPlaylistItems?: string[]
   timeFrom?: string
@@ -308,7 +314,17 @@ export function buildYtdlpArgs(options: {
     }
     args.push('--embed-thumbnail')
   }
-  if (options.embedMetadata) args.push('--embed-metadata')
+  if (options.embedMetadata) {
+    args.push('--embed-metadata')
+    // In opus/ogg containers yt-dlp hardcodes webpage_url → DESCRIPTION tag
+    // and the actual video description text → SYNOPSIS tag.
+    // Fix: replace the webpage_url field in the info_dict with the actual description text
+    // BEFORE EmbedMetadata runs, so it embeds description text into the DESCRIPTION tag.
+    // (Only when no custom description is provided — custom override happens below.)
+    if (!options.customDescription) {
+      args.push('--parse-metadata', '%(description)s:(?P<webpage_url>(?s).+)')
+    }
+  }
 
   // We use a hybrid strategy:
   // 1. --replace-in-metadata for raw text fields (handles () signs better than regex)
@@ -329,15 +345,21 @@ export function buildYtdlpArgs(options: {
     args.push('--parse-metadata', `:(?P<date>${paddedYear})`)
   }
   if (options.customDescription) {
-    // Set custom description only in description and comment fields to avoid duplication
+    // Replace description, comment, and webpage_url (which yt-dlp maps to DESCRIPTION Vorbis tag)
     args.push('--replace-in-metadata', 'description', '(?s)^.*$', options.customDescription)
     args.push('--replace-in-metadata', 'comment', '(?s)^.*$', options.customDescription)
+    args.push('--replace-in-metadata', 'webpage_url', '(?s)^.*$', options.customDescription)
   }
-  const manualCookiesPath = ensureManualCookiesFile(options.cookiesManual)
-  if (manualCookiesPath) {
-    args.push('--cookies', manualCookiesPath)
-  } else if (options.cookiesFromBrowser) {
-    args.push('--cookies-from-browser', options.cookiesFromBrowser)
+  // Cookies: file path takes priority, then manual text content, then browser
+  if (options.cookiesFilePath && fs.existsSync(options.cookiesFilePath)) {
+    args.push('--cookies', options.cookiesFilePath)
+  } else {
+    const manualCookiesPath = ensureManualCookiesFile(options.cookiesManual)
+    if (manualCookiesPath) {
+      args.push('--cookies', manualCookiesPath)
+    } else if (options.cookiesFromBrowser) {
+      args.push('--cookies-from-browser', options.cookiesFromBrowser)
+    }
   }
 
   // Playlist Items

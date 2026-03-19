@@ -24,7 +24,7 @@ export default function Titlebar({ page, setPage }: TitlebarProps): ReactElement
       <div className="titlebar-content">
         <div className="titlebar-logo">
           <span style={{ color: 'var(--accent)', marginRight: 6 }}>⬇</span>
-          MediaFetch Pro
+          uDowload
         </div>
 
         <div className="titlebar-nav">

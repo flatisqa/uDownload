@@ -223,7 +223,10 @@ export default function SettingsPage(): ReactElement {
             step={1}
             value={settings.concurrentDownloads}
             onChange={(e) => updateSettings({ concurrentDownloads: Number(e.target.value) })}
-            style={{ width: '100%', accentColor: 'var(--accent)' }}
+            style={{
+              width: '100%',
+              ['--range-pct' as string]: `${((settings.concurrentDownloads - 1) / 4) * 100}%`
+            }}
           />
         </div>
       </section>
@@ -366,16 +369,21 @@ export default function SettingsPage(): ReactElement {
             onChange={(v) => updateSettings({ embedMetadata: v })}
           />
         </div>
-        <div style={{ marginTop: 14 }}>
+
+        {/* Cookies */}
+        <div style={{ marginTop: 16 }}>
           <label
-            style={{
-              color: 'var(--text-secondary)',
-              fontSize: 11,
-              display: 'block',
-              marginBottom: 6
-            }}
+            style={{ color: 'var(--text-secondary)', fontSize: 11, display: 'block', marginBottom: 4 }}
           >
             {t('useCookies')}
+          </label>
+          <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 12, lineHeight: 1.5 }}>
+            {t('cookiesDesc')}
+          </p>
+
+          {/* From browser */}
+          <label style={{ color: 'var(--text-secondary)', fontSize: 11, display: 'block', marginBottom: 6 }}>
+            {t('useCookiesBrowserLabel')}
           </label>
           <select
             className="input"
@@ -391,59 +399,71 @@ export default function SettingsPage(): ReactElement {
             <option value="vivaldi">Vivaldi</option>
             <option value="safari">Safari</option>
           </select>
-          <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 6, lineHeight: 1.5 }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4, marginBottom: 14, lineHeight: 1.5 }}>
             {t('useCookiesWarn')}
           </p>
-        </div>
-        <div style={{ marginTop: 14 }}>
-          <label
-            style={{
-              color: 'var(--text-secondary)',
-              fontSize: 11,
-              display: 'block',
-              marginBottom: 6
-            }}
-          >
-            {t('manualCookies')}
+
+          {/* From file */}
+          <label style={{ color: 'var(--text-secondary)', fontSize: 11, display: 'block', marginBottom: 8 }}>
+            {t('cookiesFileLabel')}
           </label>
-          <textarea
-            className="input"
-            value={settings.cookiesManual}
-            onChange={(e) => updateSettings({ cookiesManual: e.target.value })}
-            placeholder={t('manualCookiesPlaceholder')}
-            rows={6}
-            style={{ resize: 'vertical', minHeight: 120, fontFamily: 'monospace' }}
-          />
-          <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 8, lineHeight: 1.5 }}>
-            {t('manualCookiesHint')}
-          </p>
           <div
             style={{
-              marginTop: 10,
-              padding: 10,
-              borderRadius: 8,
-              border: '1px solid var(--border)',
-              background: 'rgba(255,255,255,0.02)'
+              border: settings.cookiesFilePath
+                ? '1px solid var(--border-active)'
+                : '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              background: 'var(--bg-overlay)',
+              padding: '12px 14px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 10
             }}
           >
-            <p style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
-              {t('manualCookiesHowToTitle')}
-            </p>
-            <ol
-              style={{
-                margin: 0,
-                paddingLeft: 18,
-                color: 'var(--text-muted)',
-                fontSize: 12,
-                lineHeight: 1.6
-              }}
-            >
-              <li>{t('manualCookiesHowTo1')}</li>
-              <li>{t('manualCookiesHowTo2')}</li>
-              <li>{t('manualCookiesHowTo3')}</li>
-              <li>{t('manualCookiesHowTo4')}</li>
-            </ol>
+            {/* File status row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 18, lineHeight: 1 }}>
+                {settings.cookiesFilePath ? '✅' : '📄'}
+              </span>
+              <span
+                style={{
+                  fontSize: 13,
+                  color: settings.cookiesFilePath ? 'var(--text-primary)' : 'var(--text-muted)',
+                  flex: 1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {settings.cookiesFilePath
+                  ? settings.cookiesFilePath.split(/[\\/]/).pop() || settings.cookiesFilePath
+                  : t('cookiesFileNone')}
+              </span>
+            </div>
+            {/* Buttons row */}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                className="btn btn-ghost"
+                onClick={async () => {
+                  const res = await window.api.openTxtFileDialog()
+                  if (res.success && res.data) updateSettings({ cookiesFilePath: res.data })
+                }}
+              >
+                {t('cookiesFileBtn')}
+              </button>
+              {settings.cookiesFilePath && (
+                <button
+                  className="btn btn-danger"
+                  onClick={() => updateSettings({ cookiesFilePath: '' })}
+                >
+                  {t('cookiesFileClear')}
+                </button>
+              )}
+            </div>
           </div>
+          <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 8, lineHeight: 1.5 }}>
+            {t('cookiesFileHint')}
+          </p>
         </div>
       </section>
 
@@ -632,15 +652,15 @@ export default function SettingsPage(): ReactElement {
                       presets: settings.presets.map((p) =>
                         p.id === editingPresetId
                           ? {
-                              ...p,
-                              name: presetForm.name,
-                              emoji: presetForm.emoji || '⚡',
-                              options: {
-                                format: presetForm.format,
-                                audioQuality: presetForm.audioQuality,
-                                videoQuality: presetForm.videoQuality
-                              }
+                            ...p,
+                            name: presetForm.name,
+                            emoji: presetForm.emoji || '⚡',
+                            options: {
+                              format: presetForm.format,
+                              audioQuality: presetForm.audioQuality,
+                              videoQuality: presetForm.videoQuality
                             }
+                          }
                           : p
                       )
                     })
@@ -675,72 +695,68 @@ export default function SettingsPage(): ReactElement {
           </div>
         )}
 
-        <div className="flex flex-col gap-8">
+        <div className="flex flex-col gap-16">
           {settings.presets.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', fontSize: 14, fontStyle: 'italic' }}>
               {t('noPresets')}
             </p>
           ) : (
-            settings.presets.map((preset) => (
-              <div
-                key={preset.id}
-                className="flex justify-between items-center"
-                style={{
-                  padding: '8px 12px',
-                  backgroundColor: 'rgba(255,255,255,0.02)',
-                  borderRadius: 6
-                }}
-              >
-                <div>
-                  <span style={{ marginRight: 8, fontSize: 18 }}>{preset.emoji}</span>
-                  <span style={{ fontSize: 13, fontWeight: 500 }}>{preset.name}</span>
-                  <p
-                    style={{
-                      color: 'var(--text-muted)',
-                      fontSize: 12,
-                      marginTop: 6,
-                      lineHeight: 1.5
-                    }}
-                  >
-                    {preset.options.format}
-                    {preset.options.format !== 'video' &&
-                      ` • Audio: ${preset.options.audioQuality}`}
-                    {preset.options.format !== 'audio' &&
-                      ` • Video: ${preset.options.videoQuality}`}
-                  </p>
+            settings.presets.map((preset) => {
+              const presetFormat = preset.options.format || 'audio+video'
+              const audioQuality = preset.options.audioQuality || 'best'
+              const videoQuality = preset.options.videoQuality || 'best'
+
+              return (
+                <div key={preset.id} className="preset-card flex justify-between items-center">
+                  <div>
+                    <span style={{ marginRight: 8, fontSize: 18 }}>{preset.emoji}</span>
+                    <span style={{ fontSize: 13, fontWeight: 500 }}>{preset.name}</span>
+                    <p
+                      style={{
+                        color: 'var(--text-muted)',
+                        fontSize: 12,
+                        marginTop: 6,
+                        lineHeight: 1.5
+                      }}
+                    >
+                      {presetFormat}
+                      {presetFormat !== 'video' && ` • Audio: ${audioQuality}`}
+                      {presetFormat !== 'audio' && ` • Video: ${videoQuality}`}
+                    </p>
+                  </div>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                      className="btn btn-ghost"
+                      style={{ padding: '4px 8px', fontSize: 11 }}
+                      onClick={() => {
+                        setEditingPresetId(preset.id)
+                        setPresetForm({
+                          name: preset.name,
+                          emoji: preset.emoji,
+                          format: preset.options.format || 'audio+video',
+                          audioQuality: preset.options.audioQuality || 'best',
+                          videoQuality: preset.options.videoQuality || '1080p'
+                        })
+                        setShowPresetForm(true)
+                      }}
+                    >
+                      {t('editBtn')}
+                    </button>
+                    <button
+                      className="btn btn-danger"
+                      style={{ padding: '4px 8px', fontSize: 11 }}
+                      onClick={() =>
+                        updateSettings({
+                          presets: settings.presets.filter((p) => p.id !== preset.id)
+                        })
+                      }
+                    >
+                      {t('deleteBtn')}
+                    </button>
+                  </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    className="btn btn-ghost"
-                    style={{ padding: '4px 8px', fontSize: 11 }}
-                    onClick={() => {
-                      setEditingPresetId(preset.id)
-                      setPresetForm({
-                        name: preset.name,
-                        emoji: preset.emoji,
-                        format: preset.options.format || 'audio+video',
-                        audioQuality: preset.options.audioQuality || 'best',
-                        videoQuality: preset.options.videoQuality || '1080p'
-                      })
-                      setShowPresetForm(true)
-                    }}
-                  >
-                    {t('editBtn')}
-                  </button>
-                  <button
-                    className="btn btn-danger"
-                    style={{ padding: '4px 8px', fontSize: 11 }}
-                    onClick={() =>
-                      updateSettings({
-                        presets: settings.presets.filter((p) => p.id !== preset.id)
-                      })
-                    }
-                  >
-                    {t('deleteBtn')}
-                  </button>
-                </div>
-              </div>
-            ))
+              )
+            })
           )}
         </div>
       </section>

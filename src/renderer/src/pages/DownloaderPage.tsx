@@ -105,7 +105,8 @@ export default function DownloaderPage({
         const res = await window.api.fetchMetadata(
           urlToFetch.trim(),
           settings.cookiesFromBrowser,
-          settings.cookiesManual
+          settings.cookiesManual,
+          settings.cookiesFilePath
         )
         if (res.success && res.data) {
           setMeta(res.data)
@@ -133,6 +134,7 @@ export default function DownloaderPage({
       url,
       settings.cookiesFromBrowser,
       settings.cookiesManual,
+      settings.cookiesFilePath,
       setStep,
       setError,
       setMeta,
@@ -175,6 +177,7 @@ export default function DownloaderPage({
       embedMetadata: settings.embedMetadata,
       cookiesFromBrowser: settings.cookiesFromBrowser,
       cookiesManual: settings.cookiesManual,
+      cookiesFilePath: settings.cookiesFilePath,
       playlistAll: meta.isPlaylist
         ? selectedPlaylistItems.length === (meta.playlistItems?.length || 0)
         : true,
@@ -365,7 +368,7 @@ export default function DownloaderPage({
 
         {error &&
           (error.includes('Sign in to confirm') ||
-          error.includes("Sign in to confirm you're not a bot") ? (
+            error.includes("Sign in to confirm you're not a bot") ? (
             <div
               style={{
                 marginTop: 16,
@@ -674,21 +677,21 @@ export default function DownloaderPage({
                     audioQuality === '192k' ||
                     audioQuality === '128k' ||
                     audioQuality === '96k') && (
-                    <p
-                      style={{
-                        fontSize: 10,
-                        color: 'var(--text-tertiary)',
-                        marginTop: 5,
-                        lineHeight: 1.4
-                      }}
-                    >
-                      ℹ️ Выбор более высокого bitrate не улучшит качество. Если исходник был в{' '}
-                      {meta?.originalAudioBitrate ? `${meta.originalAudioBitrate}k` : '128k'} — он
-                      останется{' '}
-                      {meta?.originalAudioBitrate ? `${meta.originalAudioBitrate}k` : '128k'}.
-                      Перекодирование в 320k лишь увеличит размер файла.
-                    </p>
-                  )}
+                      <p
+                        style={{
+                          fontSize: 10,
+                          color: 'var(--text-tertiary)',
+                          marginTop: 5,
+                          lineHeight: 1.4
+                        }}
+                      >
+                        ℹ️ Выбор более высокого bitrate не улучшит качество. Если исходник был в{' '}
+                        {meta?.originalAudioBitrate ? `${meta.originalAudioBitrate}k` : '128k'} — он
+                        останется{' '}
+                        {meta?.originalAudioBitrate ? `${meta.originalAudioBitrate}k` : '128k'}.
+                        Перекодирование в 320k лишь увеличит размер файла.
+                      </p>
+                    )}
                   {audioQuality === 'best' && (
                     <p
                       style={{
@@ -706,18 +709,18 @@ export default function DownloaderPage({
                   {(audioQuality === 'flac' ||
                     audioQuality === 'opus' ||
                     audioQuality === 'aac') && (
-                    <p
-                      style={{
-                        fontSize: 10,
-                        color: 'var(--text-tertiary)',
-                        marginTop: 5,
-                        lineHeight: 1.4
-                      }}
-                    >
-                      ⚠️ Для форматов FLAC, Opus, AAC и Ogg обложки и метаданные не встраиваются.
-                      Выбирайте MP3, если вам нужны обложки в файле.
-                    </p>
-                  )}
+                      <p
+                        style={{
+                          fontSize: 10,
+                          color: 'var(--text-tertiary)',
+                          marginTop: 5,
+                          lineHeight: 1.4
+                        }}
+                      >
+                        ⚠️ Для форматов FLAC, Opus, AAC и Ogg обложки и метаданные не встраиваются.
+                        Выбирайте MP3, если вам нужны обложки в файле.
+                      </p>
+                    )}
                 </div>
               )}
               {(format === 'video' || format === 'audio+video') && (
