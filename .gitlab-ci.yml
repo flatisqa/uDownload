@@ -38,7 +38,7 @@ build:linux:
       - dist/*.deb
       - dist/*.snap
       - dist/*.rpm
-  expire_in: 1 week
+    expire_in: 1 week
 
 # Windows Build
 build:windows:
