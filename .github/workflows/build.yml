@@ -27,6 +27,8 @@ on:
 jobs:
   build-linux:
     runs-on: ubuntu-latest  # Ubuntu runner от GitHub (бесплатно)
+    permissions:
+      contents: write  # Для загрузки артефактов
     steps:
       # Клонировать код
       - uses: actions/checkout@v4
@@ -63,6 +65,8 @@ jobs:
   # ----------------------------------------------------------------------------
   build-windows:
     runs-on: windows-latest  # Windows runner от GitHub (бесплатно)
+    permissions:
+      contents: write  # Для загрузки артефактов
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -87,6 +91,8 @@ jobs:
   # ----------------------------------------------------------------------------
   build-macos:
     runs-on: macos-latest  # macOS runner от GitHub (бесплатно)
+    permissions:
+      contents: write  # Для загрузки артефактов
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -115,6 +121,8 @@ jobs:
   release:
     needs: [build-linux, build-windows, build-macos]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write  # Для создания релиза
     # Выполнять только если это тег вида v1.0.0
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
@@ -144,10 +152,9 @@ jobs:
 # ----------------------------------------------------------------------------
 # КАК ЭТО РАБОТАЕТ:
 # ----------------------------------------------------------------------------
-# 1. git push origin main          → Запускает сборку Linux/Windows/macOS
-# 2. git tag -a v1.0.0            → Создаёт тег
+# 1. git tag -a v1.0.0            → Создаёт тег
 #    git push origin v1.0.0        → Собирает всё + создаёт Release
-# 3. Сборки доступны в:
+# 2. Сборки доступны в:
 #    - Actions → вкладка Artifacts (для разработчиков)
 #    - Releases (публично, для пользователей)
 # ----------------------------------------------------------------------------
