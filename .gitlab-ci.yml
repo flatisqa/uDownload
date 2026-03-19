@@ -1,0 +1,99 @@
+# GitLab CI/CD Pipeline for uDowload
+# Builds Electron app for Linux, Windows, and macOS
+
+stages:
+  - install
+  - build
+  - package
+
+variables:
+  npm_config_cache: "$CI_PROJECT_DIR/.npm"
+  NODE_VERSION: "20"
+
+# Cache npm dependencies
+.npm_cache: &npm_cache
+  cache:
+    key:
+      files:
+        - package-lock.json
+    paths:
+      - .npm/
+      - node_modules/
+    policy: pull
+
+# Linux Build
+build:linux:
+  stage: build
+  image: node:$NODE_VERSION
+  <<: *npm_cache
+  before_script:
+    - apt-get update
+    - apt-get install -y fakeroot dpkg rpm snapcraft
+  script:
+    - npm ci --cache .npm --prefer-offline
+    - npm run build:linux
+  artifacts:
+    paths:
+      - dist/*.AppImage
+      - dist/*.deb
+      - dist/*.snap
+      - dist/*.rpm
+    expire_in: 1 week
+  tags:
+    - linux
+
+# Windows Build
+build:windows:
+  stage: build
+  image: electronuserland/builder:wine
+  <<: *npm_cache
+  script:
+    - npm ci --cache .npm --prefer-offline
+    - npm run build:win
+  artifacts:
+    paths:
+      - dist/*.exe
+      - dist/*.msi
+      - dist/*.zip
+    expire_in: 1 week
+  tags:
+    - docker
+  when: manual
+
+# macOS Build (requires macOS runner)
+build:macos:
+  stage: build
+  image: node:$NODE_VERSION
+  <<: *npm_cache
+  script:
+    - npm ci --cache .npm --prefer-offline
+    - npm run build:mac
+  artifacts:
+    paths:
+      - dist/*.dmg
+      - dist/*.zip
+    expire_in: 1 week
+  tags:
+    - macos
+  when: manual
+
+# Release Job (creates GitLab release with all artifacts)
+create_release:
+  stage: package
+  image: alpine:latest
+  dependencies:
+    - build:linux
+    - build:windows
+    - build:macos
+  script:
+    - apk add --no-cache curl jq
+    - |
+      # Collect all artifacts and create release
+      ASSETS=$(find dist -type f \( -name "*.exe" -o -name "*.msi" -o -name "*.AppImage" -o -name "*.deb" -o -name "*.dmg" -o -name "*.zip" \) | jq -R -s -c 'split("\n")[:-1]')
+      curl --request POST --header "PRIVATE-TOKEN: $CI_JOB_TOKEN" \
+        --header "Content-Type: application/json" \
+        --data "{\"name\": \"uDowload v${CI_COMMIT_TAG}\", \"tag_name\": \"${CI_COMMIT_TAG}\", \"assets\": {\"links\": $ASSETS}}" \
+        "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/releases"
+  only:
+    - tags
+  when: manual
