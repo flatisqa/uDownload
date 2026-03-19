@@ -3,6 +3,8 @@ name: Build uDowload
 on:
   push:
     branches: [main, dev]
+    tags:
+      - 'v*'  # При создании тега v1.0.0, v2.0.0 и т.д.
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -70,3 +72,33 @@ jobs:
           path: |
             dist/*.dmg
             dist/*.zip
+
+  # ============================================================================
+  # СОЗДАНИЕ РЕЛИЗА (только при создании тега v*)
+  # Собирает все артефакты и создаёт публичный релиз
+  # ============================================================================
+  release:
+    needs: [build-linux, build-windows, build-macos]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            artifacts/*.AppImage
+            artifacts/*.deb
+            artifacts/*.exe
+            artifacts/*.msi
+            artifacts/*.dmg
+            artifacts/*.zip
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
