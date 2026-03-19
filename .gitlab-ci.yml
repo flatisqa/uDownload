@@ -1,16 +1,31 @@
-# GitLab CI/CD Pipeline for uDowload
-# Builds Electron app for Linux, Windows, and macOS
+# ============================================================================
+# GitLab CI/CD Pipeline для uDowload
+# Собирает Electron приложение для Linux, Windows и macOS
+# ============================================================================
 
+# ----------------------------------------------------------------------------
+# СТАДИИ PIPELINE (Stages)
+# Каждая стадия выполняется последовательно:
+# 1. Сначала все jobs из stage: build
+# 2. Затем все jobs из stage: package
+# ----------------------------------------------------------------------------
 stages:
   - install
   - build
   - package
 
+# ----------------------------------------------------------------------------
+# ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
+# Доступны во всех jobs
+# ----------------------------------------------------------------------------
 variables:
   npm_config_cache: "$CI_PROJECT_DIR/.npm"
   NODE_VERSION: "20"
 
-# Cache npm dependencies
+# ----------------------------------------------------------------------------
+# ШАБЛОН КЭШИРОВАНИЯ (Cache Template)
+# Используется в нескольких jobs через <<: *npm_cache
+# ----------------------------------------------------------------------------
 .npm_cache: &npm_cache
   cache:
     key:
@@ -21,7 +36,10 @@ variables:
       - node_modules/
     policy: pull
 
-# Linux Build
+# ----------------------------------------------------------------------------
+# СБОРКА ДЛЯ LINUX
+# Автоматически запускается при push
+# ----------------------------------------------------------------------------
 build:linux:
   stage: build
   image: node:$NODE_VERSION
@@ -38,7 +56,11 @@ build:linux:
       - dist/*.deb
     expire_in: 1 week
 
-# Windows Build
+# ----------------------------------------------------------------------------
+# СБОРКА ДЛЯ WINDOWS
+# Только ручной запуск (when: manual)
+# Требует специального Windows runner (обычно платный)
+# ----------------------------------------------------------------------------
 build:windows:
   stage: build
   image: electronuserland/builder:wine
@@ -54,7 +76,12 @@ build:windows:
     expire_in: 1 week
   when: manual
 
-# macOS Build (requires macOS runner)
+# ----------------------------------------------------------------------------
+# СБОРКА ДЛЯ MACOS
+# Только ручной запуск
+# Требует macOS runner (обычно платный, GitHub Actions бесплатнее)
+# ВАЖНО: На Linux нельзя создать подписанный DMG, поэтому только ZIP
+# ----------------------------------------------------------------------------
 build:macos:
   stage: build
   image: node:$NODE_VERSION
@@ -67,9 +94,15 @@ build:macos:
       - dist/*.dmg
       - dist/*.zip
     expire_in: 1 week
+  tags:
+    - saas-macos-large-m2pro
   when: manual
 
-# Release Job (creates GitLab release with all artifacts)
+# ----------------------------------------------------------------------------
+# СОЗДАНИЕ РЕЛИЗА (GitLab Release)
+# Автоматически при создании тега (git tag v1.0.0 && git push origin v1.0.0)
+# Собирает артефакты со всех jobs и создаёт релиз
+# ----------------------------------------------------------------------------
 create_release:
   stage: package
   image: alpine:latest
