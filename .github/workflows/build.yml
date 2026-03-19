@@ -59,6 +59,8 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Install dmg-license for macOS
+        run: npm install dmg-license
       - name: Build for macOS
         run: npm run build:mac
       - name: Upload artifacts
