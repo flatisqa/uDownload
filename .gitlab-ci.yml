@@ -38,9 +38,7 @@ build:linux:
       - dist/*.deb
       - dist/*.snap
       - dist/*.rpm
-    expire_in: 1 week
-  tags:
-    - linux
+  expire_in: 1 week
 
 # Windows Build
 build:windows:
@@ -56,8 +54,6 @@ build:windows:
       - dist/*.msi
       - dist/*.zip
     expire_in: 1 week
-  tags:
-    - docker
   when: manual
 
 # macOS Build (requires macOS runner)
@@ -73,8 +69,6 @@ build:macos:
       - dist/*.dmg
       - dist/*.zip
     expire_in: 1 week
-  tags:
-    - macos
   when: manual
 
 # Release Job (creates GitLab release with all artifacts)
