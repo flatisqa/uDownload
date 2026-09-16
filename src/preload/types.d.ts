@@ -7,6 +7,11 @@ import type {
 } from '@shared/types/download'
 
 export interface IElectronAPI {
+  // Window management
+  minimizeWindow: () => void
+  maximizeWindow: () => void
+  closeWindow: () => void
+  // Metadata & Downloads
   fetchMetadata: (
     url: string,
     cookiesFromBrowser?: string,
@@ -22,10 +27,7 @@ export interface IElectronAPI {
   cancelDownload: (jobId: string) => Promise<{ success: boolean }>
   resumeDownload: (jobId: string) => Promise<{ success: boolean }>
   checkAndUpdateBinaries: () => Promise<{ success: boolean; data?: string; error?: string }>
-  getBinaryStatus: () => Promise<{
-    success: boolean
-    data?: import('@shared/types/download').BinaryStatus
-  }>
+  getBinaryStatus: () => Promise<{ success: boolean; data?: { ytdlp: boolean; ffmpeg: boolean } }>
   getSettings: () => Promise<{ success: boolean; data?: AppConfig }>
   setSettings: (settings: Partial<AppConfig>) => Promise<{ success: boolean }>
   toggleClipboard: (enabled: boolean) => Promise<{ success: boolean }>
@@ -67,15 +69,24 @@ export interface IElectronAPI {
   }>
   cancelDetectTracks: () => Promise<{ success: boolean }>
 
+  // Dependencies check
+  checkDependencies: () => Promise<{
+    success: boolean
+    data?: { ytDlp: boolean; ffmpeg: boolean; allInstalled: boolean }
+    error?: string
+  }>
+  isFirstRun: () => Promise<{ success: boolean; data?: boolean }>
+  markFirstRunCompleted: () => Promise<{ success: boolean }>
+  installDependency: (component: 'yt-dlp' | 'ffmpeg') => Promise<{
+    success: boolean
+    error?: string
+  }>
   onDownloadProgress: (callback: (data: object) => void) => () => void
   onDownloadCompleted: (callback: (data: object) => void) => () => void
   onDownloadError: (callback: (data: object) => void) => () => void
   onClipboardLink: (callback: (url: string) => void) => () => void
   onDetectProgress: (
     callback: (progress: import('@shared/types/download').TrackDetectProgress) => void
-  ) => () => void
-  onBinaryProgress: (
-    callback: (progress: import('@shared/types/download').BinaryUpdateProgress) => void
   ) => () => void
 }
 

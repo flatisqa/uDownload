@@ -1,6 +1,13 @@
 import { useEffect, useState, type ReactElement } from 'react'
 import { useStore } from '../store'
-import type { MediaFormat, AudioQuality, VideoQuality, AppConfig } from '@shared/types/download'
+import type {
+  MediaFormat,
+  AudioQuality,
+  VideoQuality,
+  AppConfig,
+  BinaryStatus,
+  BinaryUpdateProgress
+} from '@shared/types/download'
 import { useTranslation } from '../i18n'
 
 function Toggle({
@@ -18,21 +25,138 @@ function Toggle({
   )
 }
 
+function CollapsibleSection({
+  title,
+  isOpen,
+  onToggle,
+  children,
+  headerActions
+}: {
+  title: string
+  isOpen: boolean
+  onToggle: () => void
+  children: React.ReactNode
+  headerActions?: React.ReactNode
+}): ReactElement {
+  return (
+    <section
+      className="glass-panel"
+      style={{
+        padding: 0,
+        overflow: 'hidden',
+        flexShrink: 0,
+        transition: 'border-color 0.2s ease',
+        border: isOpen
+          ? '1px solid rgba(255, 255, 255, 0.1)'
+          : '1px solid rgba(255, 255, 255, 0.05)'
+      }}
+    >
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onToggle()
+          }
+        }}
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '16px 20px',
+          cursor: 'pointer',
+          userSelect: 'none',
+          backgroundColor: isOpen ? 'rgba(255, 255, 255, 0.02)' : 'transparent',
+          transition: 'background-color 0.2s ease'
+        }}
+      >
+        <p className="heading-sm" style={{ margin: 0 }}>
+          {title}
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {headerActions && <div onClick={(e) => e.stopPropagation()}>{headerActions}</div>}
+          <span
+            style={{
+              fontSize: 11,
+              color: 'var(--text-muted)',
+              display: 'inline-block',
+              transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s ease'
+            }}
+          >
+            ▼
+          </span>
+        </div>
+      </div>
+      {isOpen && (
+        <div
+          style={{ padding: '0 20px 20px 20px', borderTop: '1px solid rgba(255, 255, 255, 0.04)' }}
+        >
+          <div style={{ paddingTop: 16 }}>{children}</div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+const ALL_SECTION_KEYS = [
+  'appearance',
+  'download',
+  'subtitles',
+  'metadata',
+  'clipboard',
+  'presets',
+  'advanced',
+  'components'
+]
+
 export default function SettingsPage(): ReactElement {
   const settings = useStore((s) => s.settings)
   const updateSettings = useStore((s) => s.updateSettings)
   const t = useTranslation(settings.language)
 
-  const [binaryStatus, setBinaryStatus] = useState<{
-    ytdlp: boolean
-    ytdlpVersion?: string
-    ffmpeg: boolean
-    ffmpegVersion?: string
-  } | null>(null)
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('udownload_settings_sections')
+      return saved ? JSON.parse(saved) : {}
+    } catch {
+      return {}
+    }
+  })
+
+  const toggleSection = (id: string): void => {
+    setOpenSections((prev) => {
+      const next = { ...prev, [id]: !prev[id] }
+      try {
+        localStorage.setItem('udownload_settings_sections', JSON.stringify(next))
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
+  }
+
+  const setAllSections = (open: boolean): void => {
+    const next: Record<string, boolean> = {}
+    for (const k of ALL_SECTION_KEYS) {
+      next[k] = open
+    }
+    setOpenSections(next)
+    try {
+      localStorage.setItem('udownload_settings_sections', JSON.stringify(next))
+    } catch {
+      /* ignore */
+    }
+  }
+
+  const [binaryStatus, setBinaryStatus] = useState<BinaryStatus | null>(null)
   const [showArgsTooltip, setShowArgsTooltip] = useState(false)
   const [argsTooltipPinned, setArgsTooltipPinned] = useState(false)
   const [updateMsg, setUpdateMsg] = useState('')
   const [isUpdating, setIsUpdating] = useState(false)
+  const [updateProgress, setUpdateProgress] = useState<BinaryUpdateProgress | null>(null)
   const [customSubLang, setCustomSubLang] = useState(false)
 
   const [showPresetForm, setShowPresetForm] = useState(false)
@@ -49,31 +173,72 @@ export default function SettingsPage(): ReactElement {
     window.api.getBinaryStatus().then((res) => {
       if (res.success && res.data) setBinaryStatus(res.data)
     })
+
+    const unsub = window.api.onBinaryProgress?.((prog) => {
+      setUpdateProgress(prog)
+      if (prog.message) {
+        setUpdateMsg(prog.message)
+      }
+    })
+
+    return () => unsub?.()
   }, [])
 
   const handleUpdate = async (): Promise<void> => {
     setIsUpdating(true)
     setUpdateMsg('')
-    const res = await window.api.checkAndUpdateBinaries()
-    setUpdateMsg(res.data || res.error || 'Done')
-    setIsUpdating(false)
-    // Refresh status
-    window.api.getBinaryStatus().then((r) => {
-      if (r.success && r.data) setBinaryStatus(r.data)
-    })
+    setUpdateProgress(null)
+    try {
+      const res = await window.api.checkAndUpdateBinaries()
+      setUpdateMsg(res.data || res.error || 'Done')
+    } catch (err) {
+      setUpdateMsg(String(err))
+    } finally {
+      setIsUpdating(false)
+      setUpdateProgress(null)
+      window.api.getBinaryStatus().then((r) => {
+        if (r.success && r.data) setBinaryStatus(r.data)
+      })
+    }
   }
 
   return (
     <div className="page">
-      <div className="page-header">
+      <div
+        className="page-header"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12
+        }}
+      >
         <h1 className="heading-xl">{t('settingsTitle')}</h1>
+        <div className="flex gap-8">
+          <button
+            className="btn btn-ghost"
+            style={{ fontSize: 12, padding: '4px 10px' }}
+            onClick={() => setAllSections(true)}
+          >
+            {t('expandAll')}
+          </button>
+          <button
+            className="btn btn-ghost"
+            style={{ fontSize: 12, padding: '4px 10px' }}
+            onClick={() => setAllSections(false)}
+          >
+            {t('collapseAll')}
+          </button>
+        </div>
       </div>
 
       {/* Appearance */}
-      <section className="glass-panel" style={{ padding: 20 }}>
-        <p className="heading-sm" style={{ marginBottom: 16 }}>
-          {t('appearance')}
-        </p>
+      <CollapsibleSection
+        title={t('appearance')}
+        isOpen={Boolean(openSections.appearance)}
+        onToggle={() => toggleSection('appearance')}
+      >
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <div>
             <label
@@ -124,14 +289,14 @@ export default function SettingsPage(): ReactElement {
             </select>
           </div>
         </div>
-      </section>
+      </CollapsibleSection>
 
       {/* Download */}
-      <section className="glass-panel" style={{ padding: 20 }}>
-        <p className="heading-sm" style={{ marginBottom: 16 }}>
-          {t('downloadSec')}
-        </p>
-
+      <CollapsibleSection
+        title={t('downloadSec')}
+        isOpen={Boolean(openSections.download)}
+        onToggle={() => toggleSection('download')}
+      >
         <div
           style={{
             display: 'grid',
@@ -163,7 +328,7 @@ export default function SettingsPage(): ReactElement {
                 className="btn btn-ghost"
                 style={{ flexShrink: 0 }}
                 onClick={async () => {
-                  const res = await window.api.openFolderDialog()
+                  const res = await window.api.openFolderDialog(settings.outputDirectoryVideo)
                   if (res.success && res.data) updateSettings({ outputDirectoryVideo: res.data })
                 }}
               >
@@ -195,7 +360,7 @@ export default function SettingsPage(): ReactElement {
                 className="btn btn-ghost"
                 style={{ flexShrink: 0 }}
                 onClick={async () => {
-                  const res = await window.api.openFolderDialog()
+                  const res = await window.api.openFolderDialog(settings.outputDirectoryAudio)
                   if (res.success && res.data) updateSettings({ outputDirectoryAudio: res.data })
                 }}
               >
@@ -229,13 +394,14 @@ export default function SettingsPage(): ReactElement {
             }}
           />
         </div>
-      </section>
+      </CollapsibleSection>
 
       {/* Subtitles */}
-      <section className="glass-panel" style={{ padding: 20 }}>
-        <p className="heading-sm" style={{ marginBottom: 16 }}>
-          {t('subtitlesSec')}
-        </p>
+      <CollapsibleSection
+        title={t('subtitlesSec')}
+        isOpen={Boolean(openSections.subtitles)}
+        onToggle={() => toggleSection('subtitles')}
+      >
         <div className="toggle-wrap">
           <span style={{ fontSize: 13 }}>{t('downloadSubs')}</span>
           <Toggle
@@ -348,13 +514,14 @@ export default function SettingsPage(): ReactElement {
             </div>
           </>
         )}
-      </section>
+      </CollapsibleSection>
 
       {/* Metadata */}
-      <section className="glass-panel" style={{ padding: 20 }}>
-        <p className="heading-sm" style={{ marginBottom: 16 }}>
-          {t('metadataSec')}
-        </p>
+      <CollapsibleSection
+        title={t('metadataSec')}
+        isOpen={Boolean(openSections.metadata)}
+        onToggle={() => toggleSection('metadata')}
+      >
         <div className="toggle-wrap">
           <span style={{ fontSize: 13 }}>{t('embedThumb')}</span>
           <Toggle
@@ -373,16 +540,30 @@ export default function SettingsPage(): ReactElement {
         {/* Cookies */}
         <div style={{ marginTop: 16 }}>
           <label
-            style={{ color: 'var(--text-secondary)', fontSize: 11, display: 'block', marginBottom: 4 }}
+            style={{
+              color: 'var(--text-secondary)',
+              fontSize: 11,
+              display: 'block',
+              marginBottom: 4
+            }}
           >
             {t('useCookies')}
           </label>
-          <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 12, lineHeight: 1.5 }}>
+          <p
+            style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 12, lineHeight: 1.5 }}
+          >
             {t('cookiesDesc')}
           </p>
 
           {/* From browser */}
-          <label style={{ color: 'var(--text-secondary)', fontSize: 11, display: 'block', marginBottom: 6 }}>
+          <label
+            style={{
+              color: 'var(--text-secondary)',
+              fontSize: 11,
+              display: 'block',
+              marginBottom: 6
+            }}
+          >
             {t('useCookiesBrowserLabel')}
           </label>
           <select
@@ -399,12 +580,27 @@ export default function SettingsPage(): ReactElement {
             <option value="vivaldi">Vivaldi</option>
             <option value="safari">Safari</option>
           </select>
-          <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4, marginBottom: 14, lineHeight: 1.5 }}>
+          <p
+            style={{
+              color: 'var(--text-muted)',
+              fontSize: 12,
+              marginTop: 4,
+              marginBottom: 14,
+              lineHeight: 1.5
+            }}
+          >
             {t('useCookiesWarn')}
           </p>
 
           {/* From file */}
-          <label style={{ color: 'var(--text-secondary)', fontSize: 11, display: 'block', marginBottom: 8 }}>
+          <label
+            style={{
+              color: 'var(--text-secondary)',
+              fontSize: 11,
+              display: 'block',
+              marginBottom: 8
+            }}
+          >
             {t('cookiesFileLabel')}
           </label>
           <div
@@ -465,13 +661,14 @@ export default function SettingsPage(): ReactElement {
             {t('cookiesFileHint')}
           </p>
         </div>
-      </section>
+      </CollapsibleSection>
 
       {/* Clipboard */}
-      <section className="glass-panel" style={{ padding: 20 }}>
-        <p className="heading-sm" style={{ marginBottom: 16 }}>
-          {t('clipboardSec')}
-        </p>
+      <CollapsibleSection
+        title={t('clipboardSec')}
+        isOpen={Boolean(openSections.clipboard)}
+        onToggle={() => toggleSection('clipboard')}
+      >
         <div className="toggle-wrap">
           <div>
             <p style={{ fontSize: 13 }}>{t('autoDetect')}</p>
@@ -487,23 +684,30 @@ export default function SettingsPage(): ReactElement {
             }}
           />
         </div>
-      </section>
+      </CollapsibleSection>
 
       {/* Presets */}
-      <section className="glass-panel" style={{ padding: 20 }}>
-        <div className="flex justify-between items-center" style={{ marginBottom: 16 }}>
-          <p className="heading-sm">{t('presetsSec')}</p>
-          {!showPresetForm && (
+      <CollapsibleSection
+        title={t('presetsSec')}
+        isOpen={Boolean(openSections.presets)}
+        onToggle={() => toggleSection('presets')}
+        headerActions={
+          !showPresetForm ? (
             <button
               className="btn btn-ghost"
               style={{ padding: '4px 8px', fontSize: 12 }}
-              onClick={() => setShowPresetForm(true)}
+              onClick={() => {
+                if (!openSections.presets) {
+                  toggleSection('presets')
+                }
+                setShowPresetForm(true)
+              }}
             >
               {t('addPreset')}
             </button>
-          )}
-        </div>
-
+          ) : undefined
+        }
+      >
         {showPresetForm && (
           <div
             style={{
@@ -652,15 +856,15 @@ export default function SettingsPage(): ReactElement {
                       presets: settings.presets.map((p) =>
                         p.id === editingPresetId
                           ? {
-                            ...p,
-                            name: presetForm.name,
-                            emoji: presetForm.emoji || '⚡',
-                            options: {
-                              format: presetForm.format,
-                              audioQuality: presetForm.audioQuality,
-                              videoQuality: presetForm.videoQuality
+                              ...p,
+                              name: presetForm.name,
+                              emoji: presetForm.emoji || '⚡',
+                              options: {
+                                format: presetForm.format,
+                                audioQuality: presetForm.audioQuality,
+                                videoQuality: presetForm.videoQuality
+                              }
                             }
-                          }
                           : p
                       )
                     })
@@ -695,7 +899,57 @@ export default function SettingsPage(): ReactElement {
           </div>
         )}
 
-        <div className="flex flex-col gap-16">
+        {/* Default Preset on startup */}
+        {settings.presets.length > 0 && (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'rgba(0, 0, 0, 0.25)',
+              border: '1px solid rgba(255, 255, 255, 0.05)'
+            }}
+          >
+            <label
+              style={{
+                color: 'var(--text-secondary)',
+                fontSize: 11,
+                fontWeight: 600,
+                display: 'block',
+                marginBottom: 6,
+                letterSpacing: '0.05em'
+              }}
+            >
+              {t('defaultPreset').toUpperCase()}
+            </label>
+            <select
+              className="input"
+              value={settings.defaultPresetId || ''}
+              onChange={(e) => updateSettings({ defaultPresetId: e.target.value })}
+              style={{ maxWidth: 360, width: '100%' }}
+            >
+              <option value="">{t('defaultPresetNone')}</option>
+              {settings.presets.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.emoji} {p.name}
+                </option>
+              ))}
+            </select>
+            <p
+              style={{
+                color: 'var(--text-muted)',
+                fontSize: 11,
+                marginTop: 6,
+                lineHeight: 1.4,
+                margin: 0
+              }}
+            >
+              {t('defaultPresetDesc')}
+            </p>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-8">
           {settings.presets.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', fontSize: 14, fontStyle: 'italic' }}>
               {t('noPresets')}
@@ -705,12 +959,29 @@ export default function SettingsPage(): ReactElement {
               const presetFormat = preset.options.format || 'audio+video'
               const audioQuality = preset.options.audioQuality || 'best'
               const videoQuality = preset.options.videoQuality || 'best'
+              const isDefault = settings.defaultPresetId === preset.id
 
               return (
-                <div key={preset.id} className="preset-card flex justify-between items-center">
+                <div
+                  key={preset.id}
+                  className="preset-card flex justify-between items-center"
+                  style={isDefault ? { borderColor: 'rgba(56, 189, 248, 0.35)' } : undefined}
+                >
                   <div>
-                    <span style={{ marginRight: 8, fontSize: 18 }}>{preset.emoji}</span>
-                    <span style={{ fontSize: 13, fontWeight: 500 }}>{preset.name}</span>
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
+                    >
+                      <span style={{ marginRight: 4, fontSize: 18 }}>{preset.emoji}</span>
+                      <span style={{ fontSize: 13, fontWeight: 500 }}>{preset.name}</span>
+                      {isDefault && (
+                        <span
+                          className="badge badge-done"
+                          style={{ fontSize: 10, padding: '2px 6px' }}
+                        >
+                          ⭐ {t('isDefaultBadge')}
+                        </span>
+                      )}
+                    </div>
                     <p
                       style={{
                         color: 'var(--text-muted)',
@@ -724,7 +995,21 @@ export default function SettingsPage(): ReactElement {
                       {presetFormat !== 'audio' && ` • Video: ${videoQuality}`}
                     </p>
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <button
+                      className="btn btn-ghost"
+                      style={{
+                        padding: '4px 8px',
+                        fontSize: 11,
+                        color: isDefault ? 'var(--text-muted)' : 'var(--accent)'
+                      }}
+                      onClick={() =>
+                        updateSettings({ defaultPresetId: isDefault ? '' : preset.id })
+                      }
+                      title={isDefault ? 'Снять выбор по умолчанию' : t('setDefaultBtn')}
+                    >
+                      {isDefault ? '✕ Снять' : `⭐ ${t('setDefaultBtn')}`}
+                    </button>
                     <button
                       className="btn btn-ghost"
                       style={{ padding: '4px 8px', fontSize: 11 }}
@@ -745,11 +1030,15 @@ export default function SettingsPage(): ReactElement {
                     <button
                       className="btn btn-danger"
                       style={{ padding: '4px 8px', fontSize: 11 }}
-                      onClick={() =>
-                        updateSettings({
+                      onClick={() => {
+                        const updates: Partial<typeof settings> = {
                           presets: settings.presets.filter((p) => p.id !== preset.id)
-                        })
-                      }
+                        }
+                        if (settings.defaultPresetId === preset.id) {
+                          updates.defaultPresetId = ''
+                        }
+                        updateSettings(updates)
+                      }}
                     >
                       {t('deleteBtn')}
                     </button>
@@ -759,13 +1048,14 @@ export default function SettingsPage(): ReactElement {
             })
           )}
         </div>
-      </section>
+      </CollapsibleSection>
 
       {/* Advanced */}
-      <section className="glass-panel" style={{ padding: 20 }}>
-        <p className="heading-sm" style={{ marginBottom: 16 }}>
-          {t('advancedSec')}
-        </p>
+      <CollapsibleSection
+        title={t('advancedSec')}
+        isOpen={Boolean(openSections.advanced)}
+        onToggle={() => toggleSection('advanced')}
+      >
         <div style={{ marginBottom: 14 }}>
           <div
             style={{
@@ -926,13 +1216,14 @@ export default function SettingsPage(): ReactElement {
           />
         </div>
         */}
-      </section>
+      </CollapsibleSection>
 
       {/* Binaries */}
-      <section className="glass-panel" style={{ padding: 20 }}>
-        <p className="heading-sm" style={{ marginBottom: 16 }}>
-          {t('componentsSec')}
-        </p>
+      <CollapsibleSection
+        title={t('componentsSec')}
+        isOpen={Boolean(openSections.components)}
+        onToggle={() => toggleSection('components')}
+      >
         <div className="toggle-wrap" style={{ marginBottom: 16 }}>
           <div>
             <p style={{ fontSize: 13 }}>{t('autoCheckUpdates')}</p>
@@ -946,10 +1237,10 @@ export default function SettingsPage(): ReactElement {
           />
         </div>
         {binaryStatus && (
-          <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div className="flex items-center gap-8">
               <span className={`badge ${binaryStatus.ytdlp ? 'badge-done' : 'badge-error'}`}>
-                yt-dlp {binaryStatus.ytdlp ? '✓' : '✗'}
+                YT-DLP {binaryStatus.ytdlp ? '✓' : '✗'}
               </span>
               {binaryStatus.ytdlpVersion && (
                 <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
@@ -957,27 +1248,160 @@ export default function SettingsPage(): ReactElement {
                 </span>
               )}
             </div>
+
             <div className="flex items-center gap-8">
               <span className={`badge ${binaryStatus.ffmpeg ? 'badge-done' : 'badge-error'}`}>
-                ffmpeg {binaryStatus.ffmpeg ? '✓' : '✗'}
+                FFMPEG {binaryStatus.ffmpeg ? '✓' : '✗'}
               </span>
-              {binaryStatus.ffmpegVersion && (
-                <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                  {binaryStatus.ffmpegVersion}
-                </span>
+              <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                {binaryStatus.ffmpegVersion ||
+                  (settings.language === 'ru' ? 'не найден' : 'not found')}
+              </span>
+            </div>
+
+            {/* FFmpeg Source Selection */}
+            <div
+              style={{
+                marginTop: 4,
+                padding: '12px 14px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'rgba(0, 0, 0, 0.25)',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10
+              }}
+            >
+              <label
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: '0.05em',
+                  color: 'var(--text-secondary)'
+                }}
+              >
+                {settings.language === 'ru'
+                  ? 'ВЕРСИЯ FFMPEG ДЛЯ ИСПОЛЬЗОВАНИЯ'
+                  : 'FFMPEG VERSION TO USE'}
+              </label>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {/* Standalone option */}
+                <label className="flex items-center gap-10 cursor-pointer" style={{ fontSize: 13 }}>
+                  <input
+                    type="radio"
+                    name="ffmpegSource"
+                    checked={(settings.ffmpegSource || 'standalone') === 'standalone'}
+                    onChange={async () => {
+                      await updateSettings({ ffmpegSource: 'standalone' })
+                      window.api
+                        .getBinaryStatus()
+                        .then((r) => r.success && r.data && setBinaryStatus(r.data))
+                    }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        fontWeight:
+                          (settings.ffmpegSource || 'standalone') === 'standalone' ? 600 : 400
+                      }}
+                    >
+                      ⚡{' '}
+                      {settings.language === 'ru'
+                        ? 'Автономная сборка (uDownload)'
+                        : 'Standalone build'}
+                    </span>
+                    <span
+                      className="badge badge-pending"
+                      style={{ fontSize: 11, textTransform: 'none' }}
+                    >
+                      {binaryStatus.standaloneFfmpegVersion
+                        ? binaryStatus.standaloneFfmpegVersion
+                        : settings.language === 'ru'
+                          ? 'не скачана'
+                          : 'not downloaded'}
+                    </span>
+                  </div>
+                </label>
+
+                {/* System option */}
+                <label className="flex items-center gap-10 cursor-pointer" style={{ fontSize: 13 }}>
+                  <input
+                    type="radio"
+                    name="ffmpegSource"
+                    checked={settings.ffmpegSource === 'system'}
+                    onChange={async () => {
+                      await updateSettings({ ffmpegSource: 'system' })
+                      window.api
+                        .getBinaryStatus()
+                        .then((r) => r.success && r.data && setBinaryStatus(r.data))
+                    }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: settings.ffmpegSource === 'system' ? 600 : 400 }}>
+                      🖥️ {settings.language === 'ru' ? 'Системная версия' : 'System version'}
+                    </span>
+                    <span
+                      className="badge badge-pending"
+                      style={{ fontSize: 11, textTransform: 'none' }}
+                    >
+                      {binaryStatus.systemFfmpegVersion
+                        ? binaryStatus.systemFfmpegVersion
+                        : settings.language === 'ru'
+                          ? 'не найдена в системе'
+                          : 'not found in system'}
+                    </span>
+                  </div>
+                </label>
+              </div>
+
+              {settings.ffmpegSource === 'system' && (
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                  {settings.language === 'ru'
+                    ? '💡 При проверке обновлений для системной версии файлы не скачиваются зря.'
+                    : '💡 When using system FFmpeg, updates are only checked without downloading.'}
+                </p>
               )}
             </div>
           </div>
         )}
-        <div className="flex items-center gap-12">
+
+        {/* Live Progress Bar when updating */}
+        {isUpdating && updateProgress && (
+          <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+              <span style={{ color: 'var(--accent)' }}>
+                {updateProgress.message ||
+                  (settings.language === 'ru' ? 'Обновление...' : 'Updating...')}
+              </span>
+              {typeof updateProgress.percent === 'number' && (
+                <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+                  {updateProgress.percent}%
+                </span>
+              )}
+            </div>
+            {typeof updateProgress.percent === 'number' && (
+              <div className="progress-wrap" style={{ height: 6 }}>
+                <div
+                  className="progress-bar"
+                  style={{ width: `${updateProgress.percent}%`, transition: 'width 0.2s ease' }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center gap-12" style={{ flexWrap: 'wrap' }}>
           <button className="btn btn-ghost" onClick={handleUpdate} disabled={isUpdating}>
-            {isUpdating ? t('updating') : t('checkForUpdates')}
+            {isUpdating
+              ? `⏳ ${settings.language === 'ru' ? 'Обновление...' : 'Updating...'}`
+              : `↻ ${t('checkForUpdates')}`}
           </button>
-          {updateMsg && (
+          {updateMsg && !isUpdating && (
             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{updateMsg}</span>
           )}
         </div>
-      </section>
+      </CollapsibleSection>
     </div>
   )
 }

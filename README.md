@@ -20,7 +20,7 @@
 Готовые сборки: https://github.com/flatisqa/uDownload/releases
 
 - **Windows**: `.exe` установщик
-- **macOS**: `.dmg` образ  
+- **macOS**: `.dmg` образ
 - **Linux**: `.AppImage` или `.deb`
 
 ## Для разработчиков

@@ -46,6 +46,30 @@ export const translations = {
     metaYear: 'Year',
     metaDescription: 'Description / Comment',
 
+    // Track Splitting
+    trackSplitTitle: 'Track Splitting (Silence / Text)',
+    trackSplitDesc: 'Auto-detect silence between songs in long audio or paste a tracklist',
+    detectSilenceBtn: 'Detect Tracks by Silence (FFmpeg)',
+    detectingSilence: 'Scanning audio stream via FFmpeg...',
+    pasteTracklistBtn: 'Paste Tracklist Text',
+    pasteTracklistPlaceholder:
+      'Paste timestamp list (one per line):\n00:00 Intro\n03:45 First Track\n07:12 Second Track',
+    applyTracklist: 'Apply Tracklist',
+    detectedTracksCount: 'Detected Tracks:',
+    downloadSelectedTracks: 'Download Selected Tracks',
+    clearTracks: 'Clear Tracks',
+    noSilenceDetected:
+      'No pauses detected. Try adjusting silence threshold or paste tracklist as text.',
+    noiseThreshold: 'Silence threshold:',
+    minSilenceDuration: 'Min silence duration:',
+    minTrackDurationLabel: 'Min track length:',
+    mergeWithPrev: 'Merge with previous track',
+    mergeWithNext: 'Merge with next track',
+    deleteTrackBtn: 'Delete track',
+    trackDuration: 'duration',
+    cancelScan: 'Cancel',
+    scanningProgressTitle: 'Scanning audio stream...',
+
     // Download BTN
     downloadBtn: '⬇ Download',
 
@@ -79,6 +103,8 @@ export const translations = {
 
     // Settings Page
     settingsTitle: 'Settings',
+    expandAll: 'Expand all',
+    collapseAll: 'Collapse all',
     appearance: 'Appearance',
     language: 'Language',
     theme: 'Theme',
@@ -114,7 +140,8 @@ export const translations = {
     embedThumb: 'Embed thumbnail (album art)',
     embedMeta: 'Embed metadata (title, artist)',
     useCookies: 'COOKIES (BYPASS AGE / GEO BLOCKS)',
-    cookiesDesc: 'Required only if the video is age-restricted, region-blocked, or needs you to be logged in.',
+    cookiesDesc:
+      'Required only if the video is age-restricted, region-blocked, or needs you to be logged in.',
     useCookiesNone: 'None (public videos)',
     useCookiesWarn: 'Browser must be closed during download.',
     useCookiesBrowserLabel: 'FROM BROWSER',
@@ -122,13 +149,19 @@ export const translations = {
     cookiesFileBtn: 'Choose cookies.txt',
     cookiesFileNone: 'No file selected',
     cookiesFileClear: 'Remove',
-    cookiesFileHint: 'Export cookies.txt from your browser using any "cookies export" extension, then select the file here.',
+    cookiesFileHint:
+      'Export cookies.txt from your browser using any "cookies export" extension, then select the file here.',
 
     clipboardSec: 'Clipboard Watcher',
     autoDetect: 'Auto-detect media links',
     autoDetectDesc: 'When enabled, copying a YouTube URL will prompt an instant download',
 
     presetsSec: 'Smart Presets',
+    defaultPreset: 'Default preset on startup',
+    defaultPresetDesc: 'Automatically apply this preset parameters when application starts',
+    defaultPresetNone: 'None (use last saved settings)',
+    setDefaultBtn: 'Set as default',
+    isDefaultBadge: 'Default',
     addPreset: '+ Add Preset',
     cancelBtn: 'Cancel',
     savePreset: 'Save Preset',
@@ -158,7 +191,36 @@ export const translations = {
 
     // Errors
     ytdlpUpdateRequired:
-      'YouTube protection detected. Please update yt-dlp to the latest version in Settings → Components → Check for updates'
+      'YouTube protection detected. Please update yt-dlp to the latest version in Settings → Components → Check for updates',
+    ytBotProtectionTitle: 'YouTube Authorization Required (Bot Protection)',
+    ytBotProtectionDesc:
+      'YouTube blocked the download as suspicious. To bypass this, use cookies from your browser.',
+    errorOccurred: 'An error occurred:',
+    ytdlpSupports1000: 'yt-dlp supports 1000+ services',
+
+    // Audio quality hints
+    audioHintBest:
+      '✅ Best downloads in Opus — YouTube native format. No re-encoding, original quality. Smaller than MP3, better quality.',
+    audioHintLossy:
+      'ℹ️ Choosing a higher bitrate will not improve quality. Re-encoding to 320k only increases file size.',
+
+    // Format options
+    formatAudioOnly: 'Audio only',
+    formatVideoOnly: 'Video only',
+    formatAudioVideo: 'Audio + Video',
+
+    // Bitrate info
+    originalBitrateLabel: 'Original audio bitrate:',
+
+    // Conflicts
+    conflictTitleFile: 'File already exists',
+    conflictTitleFolder: 'Folder already exists',
+    conflictDescFile:
+      'A file with this name already exists in the destination folder. Do you want to download it again?',
+    conflictDescFolder:
+      'A folder with this name already exists in the destination folder. Do you want to continue and download into it?',
+    conflictDownloadAnyway: 'Download anyway',
+    conflictCancel: 'Cancel'
   },
   ru: {
     // Navigation
@@ -205,6 +267,30 @@ export const translations = {
     metaYear: 'Год',
     metaDescription: 'Описание / Комментарий',
 
+    // Track Splitting
+    trackSplitTitle: 'Разбивка на треки (FFmpeg / Текст)',
+    trackSplitDesc: 'Автопоиск пауз тишины между песнями или вставка готового треклиста',
+    detectSilenceBtn: 'Найти треки по паузам (FFmpeg)',
+    detectingSilence: 'Сканирование аудиопотока через FFmpeg...',
+    pasteTracklistBtn: 'Вставить треклист текстом',
+    pasteTracklistPlaceholder:
+      'Вставьте список таймкодов (каждый с новой строки):\n00:00 Вступление\n03:45 Первый трек\n07:12 Второй трек',
+    applyTracklist: 'Применить треклист',
+    detectedTracksCount: 'Найдено треков:',
+    downloadSelectedTracks: 'Скачать выбранные треки',
+    clearTracks: 'Очистить треки',
+    noSilenceDetected:
+      'Пауз не обнаружено. Попробуйте изменить порог тишины или вставить треклист текстом.',
+    noiseThreshold: 'Порог тишины:',
+    minSilenceDuration: 'Мин. пауза:',
+    minTrackDurationLabel: 'Мин. длина трека:',
+    mergeWithPrev: 'Приклеить к предыдущему треку',
+    mergeWithNext: 'Приклеить к следующему треку',
+    deleteTrackBtn: 'Удалить трек',
+    trackDuration: 'длит.',
+    cancelScan: 'Отмена',
+    scanningProgressTitle: 'Сканирование аудиопотока...',
+
     // Download BTN
     downloadBtn: '⬇ Скачать',
 
@@ -238,6 +324,8 @@ export const translations = {
 
     // Settings Page
     settingsTitle: 'Настройки',
+    expandAll: 'Развернуть всё',
+    collapseAll: 'Свернуть всё',
     appearance: 'Внешний вид',
     language: 'Язык',
     theme: 'Тема оформления',
@@ -273,7 +361,8 @@ export const translations = {
     embedThumb: 'Встроить обложку (thumbnail)',
     embedMeta: 'Встроить метаданные (название, артист)',
     useCookies: 'COOKIES (ОБХОД БЛОКИРОВОК)',
-    cookiesDesc: 'Нужны только если видео заблокировано в вашем регионе, требует входа в аккаунт или ограничено по возрасту.',
+    cookiesDesc:
+      'Нужны только если видео заблокировано в вашем регионе, требует входа в аккаунт или ограничено по возрасту.',
     useCookiesNone: 'Нет (публичные видео)',
     useCookiesWarn: 'Браузер должен быть закрыт во время скачивания.',
     useCookiesBrowserLabel: 'ИЗ БРАУЗЕРА',
@@ -281,13 +370,19 @@ export const translations = {
     cookiesFileBtn: 'Выбрать cookies.txt',
     cookiesFileNone: 'Файл не выбран',
     cookiesFileClear: 'Сбросить',
-    cookiesFileHint: 'Экспортируйте cookies.txt из браузера с помощью любого расширения «экспорт cookies», затем выберите файл здесь.',
+    cookiesFileHint:
+      'Экспортируйте cookies.txt из браузера с помощью любого расширения «экспорт cookies», затем выберите файл здесь.',
 
     clipboardSec: 'Перехват буфера обмена',
     autoDetect: 'Автоопределение медиа ссылок',
     autoDetectDesc: 'Копирование URL автоматически предложит скачать файл',
 
     presetsSec: 'Умные Пресеты',
+    defaultPreset: 'Пресет по умолчанию при запуске',
+    defaultPresetDesc: 'Автоматически применять этот пресет при запуске приложения',
+    defaultPresetNone: 'Не выбран (последние настройки)',
+    setDefaultBtn: 'Сделать по умолчанию',
+    isDefaultBadge: 'По умолчанию',
     addPreset: '+ Создать Пресет',
     cancelBtn: 'Отмена',
     savePreset: 'Сохранить Пресет',
@@ -318,7 +413,36 @@ export const translations = {
 
     // Errors
     ytdlpUpdateRequired:
-      'Обнаружена защита YouTube. Пожалуйста, обновите yt-dlp до последней версии в Настройки → Компоненты → Проверить обновления'
+      'Обнаружена защита YouTube. Пожалуйста, обновите yt-dlp до последней версии в Настройки → Компоненты → Проверить обновления',
+    ytBotProtectionTitle: 'Требуется авторизация YouTube (Защита от ботов)',
+    ytBotProtectionDesc:
+      'YouTube заблокировал загрузку, так как считает этот запрос подозрительным. Чтобы обойти это, необходимо использовать cookies из вашего браузера.',
+    errorOccurred: 'Произошла ошибка:',
+    ytdlpSupports1000: 'yt-dlp поддерживает 1000+ сервисов',
+
+    // Audio quality hints
+    audioHintBest:
+      '✅ Best скачивает в Opus — родном формате YouTube. Никакого перекодирования, оригинальное качество. Файл меньше MP3, а качество выше.',
+    audioHintLossy:
+      'ℹ️ Выбор более высокого bitrate не улучшит качество. Перекодирование в 320k лишь увеличит размер файла.',
+
+    // Format options
+    formatAudioOnly: 'Только аудио',
+    formatVideoOnly: 'Только видео',
+    formatAudioVideo: 'Аудио + Видео',
+
+    // Bitrate info
+    originalBitrateLabel: 'Оригинальный битрейт аудио:',
+
+    // Conflicts
+    conflictTitleFile: 'Файл уже существует',
+    conflictTitleFolder: 'Папка уже существует',
+    conflictDescFile:
+      'В папке назначения уже найден файл с таким именем. Вы хотите скачать его заново?',
+    conflictDescFolder:
+      'В папке назначения уже есть папка с таким названием. Вы хотите продолжить скачивание в неё?',
+    conflictDownloadAnyway: 'Всё равно скачать',
+    conflictCancel: 'Отмена'
   }
 }
 

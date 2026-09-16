@@ -1,13 +1,27 @@
-import { ipcMain, dialog, BrowserWindow, shell } from 'electron'
+import { ipcMain, dialog, BrowserWindow, shell, app } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 import Store from 'electron-store'
 import fs from 'fs'
+import path from 'path'
+import os from 'os'
 
 import { fetchMetadata } from '../services/MetadataService'
 import { downloadQueue } from '../services/DownloadQueueManager'
 import * as BinaryManager from '../services/BinaryManager'
 import { clipboardWatcher } from '../services/ClipboardWatcher'
-import type { DownloadOptions, AppConfig } from '@shared/types/download'
+import {
+  detectSilenceTracks,
+  parseTextTracklist,
+  cancelActiveDetection
+} from '../services/TrackDetectionService'
+import type {
+  DownloadOptions,
+  AppConfig,
+  DownloadJob,
+  PlaylistProgress,
+  SilenceDetectOptions,
+  VideoMetadata
+} from '@shared/types/download'
 import { DEFAULT_CONFIG } from '@shared/types/download'
 
 // Persistent settings store
@@ -17,9 +31,20 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // ─── Metadata ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'download:fetchMetadata',
-    async (_e, url: string, cookiesFromBrowser?: string, cookiesManual?: string, cookiesFilePath?: string) => {
+    async (
+      _e,
+      url: string,
+      cookiesFromBrowser?: string,
+      cookiesManual?: string,
+      cookiesFilePath?: string
+    ) => {
       try {
-        console.log('[IPC] fetchMetadata called with:', { url, cookiesFromBrowser, cookiesManual, cookiesFilePath })
+        console.log('[IPC] fetchMetadata called with:', {
+          url,
+          cookiesFromBrowser,
+          cookiesManual,
+          cookiesFilePath
+        })
         const data = await fetchMetadata(url, cookiesFromBrowser, cookiesManual, cookiesFilePath)
         console.log('[IPC] fetchMetadata success:', data.title)
         return { success: true, data }
@@ -31,23 +56,34 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   )
 
   // ─── Download ──────────────────────────────────────────────────────────────
-  ipcMain.handle('download:start', async (_e, url: string, options: DownloadOptions) => {
-    try {
-      const jobId = uuidv4()
-      const job = {
-        id: jobId,
-        url,
-        options,
-        status: 'pending' as const,
-        progress: 0,
-        createdAt: Date.now()
+  ipcMain.handle(
+    'download:start',
+    async (
+      _e,
+      url: string,
+      options: DownloadOptions,
+      playlistProgress?: PlaylistProgress,
+      metadata?: VideoMetadata
+    ) => {
+      try {
+        const jobId = uuidv4()
+        const job: DownloadJob = {
+          id: jobId,
+          url,
+          options,
+          metadata,
+          status: 'pending' as const,
+          progress: 0,
+          createdAt: Date.now(),
+          playlistProgress
+        }
+        downloadQueue.enqueue(job)
+        return { success: true, data: jobId }
+      } catch (error) {
+        return { success: false, error: String(error) }
       }
-      downloadQueue.enqueue(job)
-      return { success: true, data: jobId }
-    } catch (error) {
-      return { success: false, error: String(error) }
     }
-  })
+  )
 
   ipcMain.handle('download:cancel', async (_e, jobId: string) => {
     try {
@@ -79,7 +115,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle('binary:checkAndUpdate', async () => {
     try {
-      const msg = await BinaryManager.checkAndUpdate()
+      const msg = await BinaryManager.checkAndUpdate((progress) => {
+        if (!mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('binary:updateProgress', progress)
+        }
+      })
       return { success: true, data: msg }
     } catch (error) {
       return { success: false, error: String(error) }
@@ -90,7 +130,21 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('settings:get', async () => {
     try {
       const data = store.store as AppConfig
-      return { success: true, data }
+      const defaultAudio = path.join(os.homedir(), 'Music')
+      const defaultVideo = path.join(os.homedir(), 'Videos')
+      const effectiveAudio = data.outputDirectoryAudio?.trim() || defaultAudio
+      const effectiveVideo = data.outputDirectoryVideo?.trim() || defaultVideo
+
+      if (!data.outputDirectoryAudio) store.set('outputDirectoryAudio', effectiveAudio)
+      if (!data.outputDirectoryVideo) store.set('outputDirectoryVideo', effectiveVideo)
+
+      const effectiveData: AppConfig = {
+        ...DEFAULT_CONFIG,
+        ...data,
+        outputDirectoryAudio: effectiveAudio,
+        outputDirectoryVideo: effectiveVideo
+      }
+      return { success: true, data: effectiveData }
     } catch (error) {
       return { success: false, error: String(error) }
     }
@@ -124,9 +178,22 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   // ─── Dialog ────────────────────────────────────────────────────────────────
   // Folder picker
-  ipcMain.handle('dialog:openFolder', async () => {
+  ipcMain.handle('dialog:openFolder', async (_e, defaultPath?: string) => {
     try {
+      let resolvedPath: string | undefined = undefined
+      if (defaultPath && typeof defaultPath === 'string') {
+        const trimmed = defaultPath.trim()
+        if (fs.existsSync(trimmed)) {
+          resolvedPath = trimmed
+        } else {
+          const parent = path.dirname(trimmed)
+          if (fs.existsSync(parent)) {
+            resolvedPath = parent
+          }
+        }
+      }
       const result = await dialog.showOpenDialog(mainWindow, {
+        defaultPath: resolvedPath,
         properties: ['openDirectory']
       })
       if (result.canceled) return { success: false }
@@ -136,9 +203,21 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     }
   })
 
-  ipcMain.handle('shell:showInFolder', async (_e, filePath: string) => {
+  ipcMain.handle('shell:showInFolder', async (_e, targetPath: string) => {
     try {
-      shell.showItemInFolder(filePath)
+      if (!targetPath) return { success: false, error: 'Path is empty' }
+      if (fs.existsSync(targetPath)) {
+        const stats = fs.statSync(targetPath)
+        if (stats.isDirectory()) {
+          await shell.openPath(targetPath)
+          return { success: true }
+        }
+      } else if (!path.extname(targetPath)) {
+        fs.mkdirSync(targetPath, { recursive: true })
+        await shell.openPath(targetPath)
+        return { success: true }
+      }
+      shell.showItemInFolder(targetPath)
       return { success: true }
     } catch (error) {
       return { success: false, error: String(error) }
@@ -185,6 +264,81 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     return name.replace(/[\\/:*?"<>|]/g, '_').trim()
   })
 
+  ipcMain.handle(
+    'fs:checkConflict',
+    (
+      _e,
+      outputPath: string,
+      title: string,
+      isPlaylistOrAlbum: boolean,
+      format: string
+    ): { exists: boolean; isDirectory: boolean; path: string; name: string } => {
+      try {
+        let targetOutputDir = outputPath?.trim() || ''
+        const config = store.store as Partial<AppConfig>
+        const defaultAudio =
+          config?.outputDirectoryAudio?.trim() || path.join(os.homedir(), 'Music')
+        const defaultVideo =
+          config?.outputDirectoryVideo?.trim() || path.join(os.homedir(), 'Videos')
+        const defaultBaseDir = format === 'audio' ? defaultAudio : defaultVideo
+
+        const isBareRoot = Boolean(
+          targetOutputDir && /^\/[^/]+$/.test(targetOutputDir) && !fs.existsSync(targetOutputDir)
+        )
+
+        if (!targetOutputDir || isBareRoot || !path.isAbsolute(targetOutputDir)) {
+          targetOutputDir = defaultBaseDir
+        }
+
+        const sanitized = title.replace(/[\\/:*?"<>|]/g, '_').trim()
+        if (isPlaylistOrAlbum) {
+          // If targetOutputDir already points to the album/playlist directory, check it directly
+          let dirPath = path.join(targetOutputDir, sanitized)
+          if (
+            path.basename(targetOutputDir).toLowerCase() === sanitized.toLowerCase() &&
+            fs.existsSync(targetOutputDir)
+          ) {
+            dirPath = targetOutputDir
+          }
+
+          if (fs.existsSync(dirPath)) {
+            const stats = fs.statSync(dirPath)
+            if (stats.isDirectory()) {
+              const files = fs.readdirSync(dirPath)
+              if (files.length > 0) {
+                return {
+                  exists: true,
+                  isDirectory: true,
+                  path: dirPath,
+                  name: path.basename(dirPath)
+                }
+              }
+            }
+          }
+        } else {
+          const audioExts = ['opus', 'mp3', 'flac', 'aac', 'm4a', 'wav', 'ogg']
+          const videoExts = ['mp4', 'mkv', 'webm', 'mov']
+          const checkExts = format === 'audio' ? audioExts : [...videoExts, ...audioExts]
+
+          for (const ext of checkExts) {
+            const filePath = path.join(targetOutputDir, `${sanitized}.${ext}`)
+            if (fs.existsSync(filePath)) {
+              return {
+                exists: true,
+                isDirectory: false,
+                path: filePath,
+                name: `${sanitized}.${ext}`
+              }
+            }
+          }
+        }
+        return { exists: false, isDirectory: false, path: '', name: '' }
+      } catch {
+        return { exists: false, isDirectory: false, path: '', name: '' }
+      }
+    }
+  )
+
   // ─── Window Management ─────────────────────────────────────────────────────
   ipcMain.on('window:minimize', () => {
     mainWindow.minimize()
@@ -200,6 +354,60 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.on('window:close', () => {
     mainWindow.close()
+  })
+
+  // ─── App Info ──────────────────────────────────────────────────────────────
+  ipcMain.handle('app:getVersion', () => {
+    return app.getVersion()
+  })
+
+  // ─── Track Detection & Silence Analysis ──────────────────────────────────
+  ipcMain.handle(
+    'audio:detectTracks',
+    async (
+      _e,
+      url: string,
+      totalDuration: number,
+      cookies?: {
+        cookiesFromBrowser?: string
+        cookiesManual?: string
+        cookiesFilePath?: string
+      },
+      options?: SilenceDetectOptions
+    ) => {
+      try {
+        const tracks = await detectSilenceTracks(
+          url,
+          totalDuration,
+          cookies,
+          options,
+          (progress) => {
+            if (!mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('audio:detectProgress', progress)
+            }
+          }
+        )
+        return { success: true, data: tracks }
+      } catch (error) {
+        console.error('[IPC] audio:detectTracks error:', error)
+        return { success: false, error: String(error) }
+      }
+    }
+  )
+
+  ipcMain.handle('audio:cancelDetectTracks', () => {
+    cancelActiveDetection()
+    return { success: true }
+  })
+
+  ipcMain.handle('audio:parseTracklist', async (_e, text: string, totalDuration: number) => {
+    try {
+      const tracks = parseTextTracklist(text, totalDuration)
+      return { success: true, data: tracks }
+    } catch (error) {
+      console.error('[IPC] audio:parseTracklist error:', error)
+      return { success: false, error: String(error) }
+    }
   })
 
   // ─── Forward queue events to renderer ─────────────────────────────────────

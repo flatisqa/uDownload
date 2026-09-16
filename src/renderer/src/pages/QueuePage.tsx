@@ -1,7 +1,19 @@
-import type { ReactElement } from 'react'
+import { useState, type ReactElement } from 'react'
 import { useStore } from '../store'
 import type { DownloadJob, DownloadStatus } from '@shared/types/download'
 import { useTranslation } from '../i18n'
+import {
+  ConfirmConflictModal,
+  type ConflictInfo
+} from '../components/Downloader/ConfirmConflictModal'
+
+function formatDuration(secs: number): string {
+  const h = Math.floor(secs / 3600)
+  const m = Math.floor((secs % 3600) / 60)
+  const s = Math.floor(secs % 60)
+  if (h > 0) return `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
+  return `${m}:${s.toString().padStart(2, '0')}`
+}
 
 function statusBadgeClass(s: DownloadStatus): string {
   const map: Record<DownloadStatus, string> = {
@@ -48,18 +60,69 @@ function JobCard({ job }: { job: DownloadJob }): ReactElement {
   const updateJob = useStore((s) => s.updateJob)
   const removeJob = useStore((s) => s.removeJob)
   const t = useTranslation(settings.language)
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  const [conflict, setConflict] = useState<ConflictInfo | null>(null)
 
   const handleCancel = async (): Promise<void> => {
     await window.api.cancelDownload(job.id)
     updateJob(job.id, { status: 'cancelled' })
   }
 
-  const handleRetry = async (): Promise<void> => {
+  const handleRetry = async (force: boolean | unknown = false): Promise<void> => {
+    if (force !== true) {
+      try {
+        const isPlaylistOrAlbum = Boolean(
+          (job.playlistProgress && job.playlistProgress.items.length > 0) ||
+          job.metadata?.isPlaylist ||
+          (job.options.selectedChapters && job.options.selectedChapters.length > 1)
+        )
+        const checkPath = job.options.outputPath || ''
+        const checkTitle = job.options.customTitle || job.metadata?.title || ''
+        const conflictCheck = await window.api.checkConflict(
+          checkPath,
+          checkTitle,
+          isPlaylistOrAlbum,
+          job.options.format
+        )
+        if (conflictCheck && conflictCheck.exists) {
+          setConflict(conflictCheck)
+          return
+        }
+      } catch (err) {
+        console.error('Retry conflict check failed:', err)
+      }
+    }
+
     // Reset job status and restart download
-    updateJob(job.id, { status: 'pending', error: undefined, progress: 0 })
-    const res = await window.api.startDownload(job.url, job.options)
+    const resetPlaylistProgress = job.playlistProgress
+      ? {
+          ...job.playlistProgress,
+          current: 0,
+          items: job.playlistProgress.items.map((it) => ({
+            ...it,
+            status: 'pending' as const,
+            progress: 0
+          }))
+        }
+      : undefined
+
+    updateJob(job.id, {
+      status: 'pending',
+      error: undefined,
+      progress: 0,
+      playlistProgress: resetPlaylistProgress
+    })
+    const res = await window.api.startDownload(
+      job.url,
+      job.options,
+      resetPlaylistProgress,
+      job.metadata
+    )
     if (!res.success) {
       updateJob(job.id, { status: 'error', error: res.error || 'Failed to restart download' })
+    } else if (res.data && res.data !== job.id) {
+      updateJob(job.id, { id: res.data })
     }
   }
 
@@ -77,6 +140,7 @@ function JobCard({ job }: { job: DownloadJob }): ReactElement {
   const isDone = job.status === 'done'
   const isError = job.status === 'error'
   const showProgress = isActive && job.status !== 'pending'
+  const isPlaylistJob = Boolean(job.playlistProgress && job.playlistProgress.items.length > 0)
   const downloadedFileName = job.finalFilePath?.split(/[\\/]/).pop() ?? ''
   const downloadedExt = downloadedFileName.includes('.')
     ? downloadedFileName.split('.').pop()?.toUpperCase()
@@ -127,10 +191,27 @@ function JobCard({ job }: { job: DownloadJob }): ReactElement {
           {job.metadata?.author && (
             <p style={{ fontSize: 11, color: 'var(--text-secondary)' }}>{job.metadata.author}</p>
           )}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              marginTop: 2,
+              flexWrap: 'wrap'
+            }}
+          >
             <span className={`badge ${statusBadgeClass(job.status)}`}>
               {statusLabel(job.status, t)}
             </span>
+            {isPlaylistJob && (
+              <span className="badge badge-download" style={{ fontSize: 11 }}>
+                {job.status === 'done'
+                  ? job.metadata?.isPlaylist
+                    ? `Плейлист (${job.playlistProgress!.total})`
+                    : `Треки (${job.playlistProgress!.total})`
+                  : `Трек ${job.playlistProgress!.current || 1}/${job.playlistProgress!.total}`}
+              </span>
+            )}
             {showInlineMeta && (
               <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 11 }}>
                 {currentFormat && (
@@ -153,6 +234,22 @@ function JobCard({ job }: { job: DownloadJob }): ReactElement {
             alignItems: 'flex-start'
           }}
         >
+          {isPlaylistJob && (
+            <button
+              className="btn btn-ghost"
+              style={{
+                padding: '4px 10px',
+                fontSize: 11,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4
+              }}
+              onClick={() => setIsExpanded(!isExpanded)}
+            >
+              <span>{isExpanded ? '▲' : '▼'}</span>
+              <span>{isExpanded ? 'Свернуть' : `Треки (${job.playlistProgress!.total})`}</span>
+            </button>
+          )}
           {isActive && (
             <button
               className="btn btn-ghost"
@@ -175,7 +272,7 @@ function JobCard({ job }: { job: DownloadJob }): ReactElement {
             <button
               className="btn btn-primary"
               style={{ padding: '4px 12px', fontSize: 11 }}
-              onClick={handleRetry}
+              onClick={() => handleRetry(false)}
             >
               {t('retryBtn')}
             </button>
@@ -236,6 +333,137 @@ function JobCard({ job }: { job: DownloadJob }): ReactElement {
             />
           </div>
         </div>
+      )}
+
+      {/* Playlist items collapsible list */}
+      {isPlaylistJob && isExpanded && (
+        <div
+          style={{
+            marginTop: 4,
+            padding: '8px 10px',
+            backgroundColor: 'rgba(0, 0, 0, 0.3)',
+            borderRadius: 8,
+            border: '1px solid rgba(255, 255, 255, 0.05)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 4,
+            maxHeight: 'max(280px, calc(100vh - 260px))',
+            overflowY: 'auto'
+          }}
+        >
+          {job.playlistProgress!.items.map((item, idx) => {
+            const isItemActive = idx === job.playlistProgress!.current - 1 && isActive
+            const itemStatus = item.status || 'pending'
+            return (
+              <div
+                key={item.id || idx}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  padding: '6px 8px',
+                  borderRadius: 6,
+                  backgroundColor: isItemActive
+                    ? 'rgba(110, 231, 183, 0.08)'
+                    : 'rgba(255, 255, 255, 0.01)',
+                  border: isItemActive
+                    ? '1px solid rgba(110, 231, 183, 0.25)'
+                    : '1px solid transparent',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <span
+                  style={{
+                    minWidth: 22,
+                    fontSize: 11,
+                    color: isItemActive ? 'var(--accent)' : 'var(--text-muted)',
+                    fontWeight: isItemActive ? 700 : 400
+                  }}
+                >
+                  {idx + 1}.
+                </span>
+
+                {item.thumbnail && (
+                  <img
+                    src={item.thumbnail}
+                    alt=""
+                    style={{
+                      width: 34,
+                      height: 22,
+                      objectFit: 'cover',
+                      borderRadius: 4,
+                      flexShrink: 0
+                    }}
+                  />
+                )}
+
+                <div
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 3
+                  }}
+                >
+                  <p
+                    className="truncate"
+                    style={{
+                      fontSize: 12,
+                      fontWeight: isItemActive ? 600 : 400,
+                      color: isItemActive ? 'var(--text-primary)' : 'var(--text-secondary)',
+                      margin: 0
+                    }}
+                  >
+                    {item.title}
+                  </p>
+                  {(itemStatus === 'downloading' || itemStatus === 'converting') && (
+                    <div className="progress-wrap" style={{ height: 3 }}>
+                      <div
+                        className="progress-bar"
+                        style={{
+                          width: `${item.progress}%`,
+                          backgroundColor:
+                            itemStatus === 'converting' ? 'var(--warning)' : undefined,
+                          transition: 'width 0.3s ease'
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                {item.duration ? (
+                  <span style={{ fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>
+                    {formatDuration(item.duration)}
+                  </span>
+                ) : null}
+
+                <span
+                  className={`badge ${statusBadgeClass(itemStatus)}`}
+                  style={{ fontSize: 10, padding: '2px 8px', flexShrink: 0 }}
+                >
+                  {itemStatus === 'done'
+                    ? '✓'
+                    : itemStatus === 'downloading'
+                      ? `${item.progress > 0 ? `${item.progress.toFixed(0)}%` : '...'}`
+                      : statusLabel(itemStatus, t)}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      {/* Conflict confirmation dialog on retry */}
+      {conflict && (
+        <ConfirmConflictModal
+          conflict={conflict}
+          onConfirm={() => {
+            setConflict(null)
+            handleRetry(true)
+          }}
+          onCancel={() => setConflict(null)}
+        />
       )}
     </div>
   )

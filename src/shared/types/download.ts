@@ -41,6 +41,28 @@ export interface ChapterInfo {
   selected: boolean
 }
 
+export interface DetectedTrack {
+  id: string
+  title: string
+  startTime: number
+  endTime: number
+  duration: number
+  selected: boolean
+}
+
+export interface SilenceDetectOptions {
+  noiseLevel?: number
+  minSilenceDuration?: number
+  minTrackDuration?: number
+}
+
+export interface TrackDetectProgress {
+  percent: number
+  currentTime: number
+  totalDuration: number
+  speed?: string
+}
+
 export interface PlaylistItem {
   id: string
   title: string
@@ -64,6 +86,13 @@ export interface VideoMetadata {
   originalAudioBitrate?: number // kbps
   description?: string
   uploadDate?: string
+}
+
+export interface DownloadTrackSection {
+  title: string
+  startTime: number
+  endTime: number
+  duration: number
 }
 
 export interface DownloadOptions {
@@ -97,6 +126,25 @@ export interface DownloadOptions {
   customYear?: string
   customDescription?: string
   expectedDuration?: number
+  trackSections?: DownloadTrackSection[]
+}
+
+export interface PlaylistItemProgress {
+  id: string
+  title: string
+  url?: string
+  duration?: number
+  thumbnail?: string
+  status: DownloadStatus
+  progress: number
+  speed?: string
+  size?: string
+}
+
+export interface PlaylistProgress {
+  current: number
+  total: number
+  items: PlaylistItemProgress[]
 }
 
 export interface DownloadJob {
@@ -113,6 +161,7 @@ export interface DownloadJob {
   finalFilePath?: string
   error?: string
   createdAt: number
+  playlistProgress?: PlaylistProgress
 }
 
 export interface Preset {
@@ -155,7 +204,11 @@ export interface AppConfig {
     | 'sakura-rain'
     | 'forest-terminal'
     | 'system'
+  // Binaries
+  ffmpegSource: 'standalone' | 'system'
+  installedFfmpegVersion?: string
   // Presets
+  defaultPresetId?: string
   presets: Preset[]
   // Last used
   lastFormat: MediaFormat
@@ -163,24 +216,63 @@ export interface AppConfig {
   lastVideoQuality: VideoQuality
 }
 
+export interface BinaryStatus {
+  ytdlp: boolean
+  ytdlpVersion?: string
+  ffmpeg: boolean
+  ffmpegVersion?: string
+  ffmpegSource?: 'standalone' | 'system'
+  standaloneFfmpegVersion?: string
+  systemFfmpegVersion?: string
+  latestFfmpegAvailable?: string
+}
+
+export interface BinaryUpdateProgress {
+  component: 'ytdlp' | 'ffmpeg'
+  status: 'checking' | 'downloading' | 'extracting' | 'done' | 'error'
+  percent?: number
+  currentBytes?: number
+  totalBytes?: number
+  message?: string
+}
+
 export const DEFAULT_PRESETS: Preset[] = [
   {
     id: 'car',
     name: 'В машину',
     emoji: '🚗',
-    options: { format: 'audio', audioQuality: '320k', embedThumbnail: true, embedMetadata: true }
+    options: {
+      format: 'audio',
+      audioQuality: '320k'
+    }
   },
   {
-    id: 'mobile',
+    id: 'phone',
     name: 'На телефон',
     emoji: '📱',
-    options: { format: 'video', videoQuality: '720p' }
+    options: {
+      format: 'video',
+      videoQuality: '720p'
+    }
   },
   {
-    id: 'archive',
+    id: 'archive_4k',
     name: 'Архив 4K',
     emoji: '📺',
-    options: { format: 'audio+video', videoQuality: '2160p' }
+    options: {
+      format: 'audio+video',
+      audioQuality: 'best',
+      videoQuality: '2160p'
+    }
+  },
+  {
+    id: 'audio_orig',
+    name: 'Audio original',
+    emoji: '🔥',
+    options: {
+      format: 'audio',
+      audioQuality: 'best'
+    }
   }
 ]
 
@@ -203,6 +295,9 @@ export const DEFAULT_CONFIG: AppConfig = {
   customArgs: '',
   language: 'en',
   theme: 'system',
+  ffmpegSource: 'standalone',
+  installedFfmpegVersion: '',
+  defaultPresetId: '',
   presets: DEFAULT_PRESETS,
   lastFormat: 'audio+video',
   lastAudioQuality: 'best',
