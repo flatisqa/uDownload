@@ -169,11 +169,9 @@ export const translations = {
 
     // Audio quality hints
     audioHintBest:
-      '\u2705 Best downloads in Opus — YouTube native format. No re-encoding, original quality. Smaller than MP3, better quality. (\u26a0\ufe0f Cover art and tags are NOT embedded)',
+      '✅ Best downloads in Opus — YouTube native format. No re-encoding, original quality. Smaller than MP3, better quality.',
     audioHintLossy:
-      '\u2139\ufe0f Choosing a higher bitrate will not improve quality. Re-encoding to 320k only increases file size.',
-    audioHintOther:
-      '\u26a0\ufe0f For FLAC, Opus, AAC — cover art and metadata are NOT embedded. Choose MP3 if you need embedded cover art.',
+      'ℹ️ Choosing a higher bitrate will not improve quality. Re-encoding to 320k only increases file size.',
 
     // Format options
     formatAudioOnly: 'Audio only',
@@ -362,11 +360,9 @@ export const translations = {
 
     // Audio quality hints
     audioHintBest:
-      '✅ Best скачивает в Opus — родном формате YouTube. Никакого перекодирования, оригинальное качество. Файл меньше MP3, а качество выше. (⚠️ Обложки и теги не встраиваются)',
+      '✅ Best скачивает в Opus — родном формате YouTube. Никакого перекодирования, оригинальное качество. Файл меньше MP3, а качество выше.',
     audioHintLossy:
       'ℹ️ Выбор более высокого bitrate не улучшит качество. Перекодирование в 320k лишь увеличит размер файла.',
-    audioHintOther:
-      '⚠️ Для FLAC, Opus, AAC — обложки и метаданные не встраиваются. Выбирайте MP3, если нужны обложки в файле.',
 
     // Format options
     formatAudioOnly: 'Только аудио',

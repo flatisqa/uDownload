@@ -203,18 +203,6 @@ export const FormatConfigPanel: React.FC = () => {
                   {t('audioHintBest')}
                 </p>
               )}
-              {(audioQuality === 'flac' || audioQuality === 'opus' || audioQuality === 'aac') && (
-                <p
-                  style={{
-                    fontSize: 10,
-                    color: 'var(--text-tertiary)',
-                    marginTop: 5,
-                    lineHeight: 1.4
-                  }}
-                >
-                  {t('audioHintOther')}
-                </p>
-              )}
             </div>
           )}
           {(format === 'video' || format === 'audio+video') && (
