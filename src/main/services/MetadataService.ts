@@ -321,7 +321,7 @@ export function buildYtdlpArgs(options: {
     // BEFORE EmbedMetadata runs, so it embeds description text into the DESCRIPTION tag.
     // (Only when no custom description is provided — custom override happens below.)
     if (!options.customDescription) {
-      args.push('--parse-metadata', '%(description)s:(?P<webpage_url>(?s).+)')
+      args.push('--parse-metadata', '%(description)s:(?s)(?P<webpage_url>.*)')
     }
   }
 
