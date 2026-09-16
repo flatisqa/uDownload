@@ -24,6 +24,30 @@ export const FormatConfigPanel: React.FC = () => {
 
   const t = useTranslation(settings.language)
 
+  const updateSettings = useStore((s) => s.updateSettings)
+
+  const isAudio = format === 'audio'
+  const currentFolder = isAudio
+    ? settings.outputDirectoryAudio
+    : settings.outputDirectoryVideo || settings.outputDirectoryAudio
+
+  const handlePickFolder = async (): Promise<void> => {
+    const res = await window.api.openFolderDialog()
+    if (res.success && res.data) {
+      if (isAudio) {
+        await updateSettings({ outputDirectoryAudio: res.data })
+      } else {
+        await updateSettings({ outputDirectoryVideo: res.data })
+      }
+    }
+  }
+
+  const handleOpenFolder = (): void => {
+    if (currentFolder) {
+      window.api.showInFolder(currentFolder)
+    }
+  }
+
   const applyPreset = (preset: Preset): void => {
     if (preset.options.format) setFormat(preset.options.format)
     if (preset.options.audioQuality) setAudioQuality(preset.options.audioQuality)
@@ -223,6 +247,68 @@ export const FormatConfigPanel: React.FC = () => {
               </select>
             </div>
           )}
+        </div>
+
+        {/* Destination folder */}
+        <div
+          style={{
+            marginTop: 16,
+            paddingTop: 14,
+            borderTop: '1px solid rgba(255, 255, 255, 0.06)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 6
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <label
+              style={{
+                color: 'var(--text-secondary)',
+                fontSize: 11,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                fontWeight: 600
+              }}
+            >
+              <span>📁</span> {isAudio ? t('saveFolderAudio') : t('saveFolderVideo')}
+            </label>
+            {currentFolder && (
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={handleOpenFolder}
+                style={{ padding: '2px 8px', fontSize: 11, height: 'auto', color: 'var(--accent)' }}
+              >
+                {t('openFolder')} ↗
+              </button>
+            )}
+          </div>
+          <div className="flex gap-8">
+            <input
+              type="text"
+              readOnly
+              className="input flex-1"
+              value={currentFolder || ''}
+              placeholder={isAudio ? '~/Music' : '~/Videos'}
+              onClick={handlePickFolder}
+              title={currentFolder}
+              style={{
+                fontSize: 12,
+                cursor: 'pointer',
+                backgroundColor: 'rgba(0, 0, 0, 0.25)',
+                color: 'var(--text-primary)'
+              }}
+            />
+            <button
+              type="button"
+              className="btn btn-ghost"
+              onClick={handlePickFolder}
+              style={{ padding: '0 14px', fontSize: 12, height: 38, whiteSpace: 'nowrap', gap: 6 }}
+            >
+              <span>📂</span> {t('browse')}
+            </button>
+          </div>
         </div>
       </div>
     </>

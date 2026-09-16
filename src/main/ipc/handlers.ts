@@ -172,9 +172,21 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     }
   })
 
-  ipcMain.handle('shell:showInFolder', async (_e, filePath: string) => {
+  ipcMain.handle('shell:showInFolder', async (_e, targetPath: string) => {
     try {
-      shell.showItemInFolder(filePath)
+      if (!targetPath) return { success: false, error: 'Path is empty' }
+      if (fs.existsSync(targetPath)) {
+        const stats = fs.statSync(targetPath)
+        if (stats.isDirectory()) {
+          await shell.openPath(targetPath)
+          return { success: true }
+        }
+      } else if (!path.extname(targetPath)) {
+        fs.mkdirSync(targetPath, { recursive: true })
+        await shell.openPath(targetPath)
+        return { success: true }
+      }
+      shell.showItemInFolder(targetPath)
       return { success: true }
     } catch (error) {
       return { success: false, error: String(error) }
