@@ -208,6 +208,7 @@ export interface AppConfig {
   ffmpegSource: 'standalone' | 'system'
   installedFfmpegVersion?: string
   // Presets
+  defaultPresetId?: string
   presets: Preset[]
   // Last used
   lastFormat: MediaFormat
@@ -240,19 +241,38 @@ export const DEFAULT_PRESETS: Preset[] = [
     id: 'car',
     name: 'В машину',
     emoji: '🚗',
-    options: { format: 'audio', audioQuality: '320k', embedThumbnail: true, embedMetadata: true }
+    options: {
+      format: 'audio',
+      audioQuality: '320k'
+    }
   },
   {
-    id: 'mobile',
+    id: 'phone',
     name: 'На телефон',
     emoji: '📱',
-    options: { format: 'video', videoQuality: '720p' }
+    options: {
+      format: 'video',
+      videoQuality: '720p'
+    }
   },
   {
-    id: 'archive',
+    id: 'archive_4k',
     name: 'Архив 4K',
     emoji: '📺',
-    options: { format: 'audio+video', videoQuality: '2160p' }
+    options: {
+      format: 'audio+video',
+      audioQuality: 'best',
+      videoQuality: '2160p'
+    }
+  },
+  {
+    id: 'audio_orig',
+    name: 'Audio original',
+    emoji: '🔥',
+    options: {
+      format: 'audio',
+      audioQuality: 'best'
+    }
   }
 ]
 
@@ -277,6 +297,7 @@ export const DEFAULT_CONFIG: AppConfig = {
   theme: 'system',
   ffmpegSource: 'standalone',
   installedFfmpegVersion: '',
+  defaultPresetId: '',
   presets: DEFAULT_PRESETS,
   lastFormat: 'audio+video',
   lastAudioQuality: 'best',

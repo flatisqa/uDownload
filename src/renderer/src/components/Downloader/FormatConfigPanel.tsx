@@ -63,11 +63,32 @@ export const FormatConfigPanel: React.FC = () => {
             {t('configPreset')}
           </p>
           <div className="flex gap-8" style={{ flexWrap: 'wrap' }}>
-            {settings.presets.map((p) => (
-              <button key={p.id} className="btn btn-ghost" onClick={() => applyPreset(p)}>
-                {p.emoji} {p.name}
-              </button>
-            ))}
+            {settings.presets.map((p) => {
+              const isDefault = settings.defaultPresetId === p.id
+              return (
+                <button
+                  key={p.id}
+                  className="btn btn-ghost"
+                  onClick={() => applyPreset(p)}
+                  style={
+                    isDefault
+                      ? {
+                          borderColor: 'rgba(56, 189, 248, 0.4)',
+                          backgroundColor: 'rgba(56, 189, 248, 0.08)'
+                        }
+                      : undefined
+                  }
+                  title={
+                    isDefault
+                      ? '⭐ ' +
+                        (settings.language === 'ru' ? 'Пресет по умолчанию' : 'Default preset')
+                      : undefined
+                  }
+                >
+                  {p.emoji} {p.name} {isDefault && '⭐'}
+                </button>
+              )
+            })}
           </div>
         </div>
       )}

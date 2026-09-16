@@ -17,7 +17,20 @@ export const createSettingsSlice: StateCreator<SettingsSlice> = (set, get) => ({
     try {
       const res = await window.api.getSettings()
       if (res.success && res.data) {
-        set({ settings: res.data, isLoaded: true })
+        const data = res.data
+        set({ settings: data, isLoaded: true })
+        if (data.defaultPresetId && data.presets) {
+          const defPreset = data.presets.find((p) => p.id === data.defaultPresetId)
+          if (defPreset) {
+            const updates: Record<string, unknown> = {}
+            if (defPreset.options.format) updates.format = defPreset.options.format
+            if (defPreset.options.audioQuality)
+              updates.audioQuality = defPreset.options.audioQuality
+            if (defPreset.options.videoQuality)
+              updates.videoQuality = defPreset.options.videoQuality
+            set(updates as unknown as Partial<SettingsSlice>)
+          }
+        }
       } else {
         // Fallback to defaults so the app isn't stuck in loading state
         set({ isLoaded: true })

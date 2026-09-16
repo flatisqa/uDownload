@@ -25,10 +25,131 @@ function Toggle({
   )
 }
 
+function CollapsibleSection({
+  title,
+  isOpen,
+  onToggle,
+  children,
+  headerActions
+}: {
+  title: string
+  isOpen: boolean
+  onToggle: () => void
+  children: React.ReactNode
+  headerActions?: React.ReactNode
+}): ReactElement {
+  return (
+    <section
+      className="glass-panel"
+      style={{
+        padding: 0,
+        overflow: 'hidden',
+        flexShrink: 0,
+        transition: 'border-color 0.2s ease',
+        border: isOpen
+          ? '1px solid rgba(255, 255, 255, 0.1)'
+          : '1px solid rgba(255, 255, 255, 0.05)'
+      }}
+    >
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={onToggle}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onToggle()
+          }
+        }}
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '16px 20px',
+          cursor: 'pointer',
+          userSelect: 'none',
+          backgroundColor: isOpen ? 'rgba(255, 255, 255, 0.02)' : 'transparent',
+          transition: 'background-color 0.2s ease'
+        }}
+      >
+        <p className="heading-sm" style={{ margin: 0 }}>
+          {title}
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {headerActions && <div onClick={(e) => e.stopPropagation()}>{headerActions}</div>}
+          <span
+            style={{
+              fontSize: 11,
+              color: 'var(--text-muted)',
+              display: 'inline-block',
+              transform: isOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+              transition: 'transform 0.2s ease'
+            }}
+          >
+            ▼
+          </span>
+        </div>
+      </div>
+      {isOpen && (
+        <div
+          style={{ padding: '0 20px 20px 20px', borderTop: '1px solid rgba(255, 255, 255, 0.04)' }}
+        >
+          <div style={{ paddingTop: 16 }}>{children}</div>
+        </div>
+      )}
+    </section>
+  )
+}
+
+const ALL_SECTION_KEYS = [
+  'appearance',
+  'download',
+  'subtitles',
+  'metadata',
+  'clipboard',
+  'presets',
+  'advanced',
+  'components'
+]
+
 export default function SettingsPage(): ReactElement {
   const settings = useStore((s) => s.settings)
   const updateSettings = useStore((s) => s.updateSettings)
   const t = useTranslation(settings.language)
+
+  const [openSections, setOpenSections] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem('udownload_settings_sections')
+      return saved ? JSON.parse(saved) : {}
+    } catch {
+      return {}
+    }
+  })
+
+  const toggleSection = (id: string): void => {
+    setOpenSections((prev) => {
+      const next = { ...prev, [id]: !prev[id] }
+      try {
+        localStorage.setItem('udownload_settings_sections', JSON.stringify(next))
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
+  }
+
+  const setAllSections = (open: boolean): void => {
+    const next: Record<string, boolean> = {}
+    for (const k of ALL_SECTION_KEYS) {
+      next[k] = open
+    }
+    setOpenSections(next)
+    try {
+      localStorage.setItem('udownload_settings_sections', JSON.stringify(next))
+    } catch {
+      /* ignore */
+    }
+  }
 
   const [binaryStatus, setBinaryStatus] = useState<BinaryStatus | null>(null)
   const [showArgsTooltip, setShowArgsTooltip] = useState(false)
@@ -83,15 +204,41 @@ export default function SettingsPage(): ReactElement {
 
   return (
     <div className="page">
-      <div className="page-header">
+      <div
+        className="page-header"
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: 12
+        }}
+      >
         <h1 className="heading-xl">{t('settingsTitle')}</h1>
+        <div className="flex gap-8">
+          <button
+            className="btn btn-ghost"
+            style={{ fontSize: 12, padding: '4px 10px' }}
+            onClick={() => setAllSections(true)}
+          >
+            {t('expandAll')}
+          </button>
+          <button
+            className="btn btn-ghost"
+            style={{ fontSize: 12, padding: '4px 10px' }}
+            onClick={() => setAllSections(false)}
+          >
+            {t('collapseAll')}
+          </button>
+        </div>
       </div>
 
       {/* Appearance */}
-      <section className="glass-panel" style={{ padding: 20 }}>
-        <p className="heading-sm" style={{ marginBottom: 16 }}>
-          {t('appearance')}
-        </p>
+      <CollapsibleSection
+        title={t('appearance')}
+        isOpen={Boolean(openSections.appearance)}
+        onToggle={() => toggleSection('appearance')}
+      >
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
           <div>
             <label
@@ -142,14 +289,14 @@ export default function SettingsPage(): ReactElement {
             </select>
           </div>
         </div>
-      </section>
+      </CollapsibleSection>
 
       {/* Download */}
-      <section className="glass-panel" style={{ padding: 20 }}>
-        <p className="heading-sm" style={{ marginBottom: 16 }}>
-          {t('downloadSec')}
-        </p>
-
+      <CollapsibleSection
+        title={t('downloadSec')}
+        isOpen={Boolean(openSections.download)}
+        onToggle={() => toggleSection('download')}
+      >
         <div
           style={{
             display: 'grid',
@@ -247,13 +394,14 @@ export default function SettingsPage(): ReactElement {
             }}
           />
         </div>
-      </section>
+      </CollapsibleSection>
 
       {/* Subtitles */}
-      <section className="glass-panel" style={{ padding: 20 }}>
-        <p className="heading-sm" style={{ marginBottom: 16 }}>
-          {t('subtitlesSec')}
-        </p>
+      <CollapsibleSection
+        title={t('subtitlesSec')}
+        isOpen={Boolean(openSections.subtitles)}
+        onToggle={() => toggleSection('subtitles')}
+      >
         <div className="toggle-wrap">
           <span style={{ fontSize: 13 }}>{t('downloadSubs')}</span>
           <Toggle
@@ -366,13 +514,14 @@ export default function SettingsPage(): ReactElement {
             </div>
           </>
         )}
-      </section>
+      </CollapsibleSection>
 
       {/* Metadata */}
-      <section className="glass-panel" style={{ padding: 20 }}>
-        <p className="heading-sm" style={{ marginBottom: 16 }}>
-          {t('metadataSec')}
-        </p>
+      <CollapsibleSection
+        title={t('metadataSec')}
+        isOpen={Boolean(openSections.metadata)}
+        onToggle={() => toggleSection('metadata')}
+      >
         <div className="toggle-wrap">
           <span style={{ fontSize: 13 }}>{t('embedThumb')}</span>
           <Toggle
@@ -512,13 +661,14 @@ export default function SettingsPage(): ReactElement {
             {t('cookiesFileHint')}
           </p>
         </div>
-      </section>
+      </CollapsibleSection>
 
       {/* Clipboard */}
-      <section className="glass-panel" style={{ padding: 20 }}>
-        <p className="heading-sm" style={{ marginBottom: 16 }}>
-          {t('clipboardSec')}
-        </p>
+      <CollapsibleSection
+        title={t('clipboardSec')}
+        isOpen={Boolean(openSections.clipboard)}
+        onToggle={() => toggleSection('clipboard')}
+      >
         <div className="toggle-wrap">
           <div>
             <p style={{ fontSize: 13 }}>{t('autoDetect')}</p>
@@ -534,23 +684,30 @@ export default function SettingsPage(): ReactElement {
             }}
           />
         </div>
-      </section>
+      </CollapsibleSection>
 
       {/* Presets */}
-      <section className="glass-panel" style={{ padding: 20 }}>
-        <div className="flex justify-between items-center" style={{ marginBottom: 16 }}>
-          <p className="heading-sm">{t('presetsSec')}</p>
-          {!showPresetForm && (
+      <CollapsibleSection
+        title={t('presetsSec')}
+        isOpen={Boolean(openSections.presets)}
+        onToggle={() => toggleSection('presets')}
+        headerActions={
+          !showPresetForm ? (
             <button
               className="btn btn-ghost"
               style={{ padding: '4px 8px', fontSize: 12 }}
-              onClick={() => setShowPresetForm(true)}
+              onClick={() => {
+                if (!openSections.presets) {
+                  toggleSection('presets')
+                }
+                setShowPresetForm(true)
+              }}
             >
               {t('addPreset')}
             </button>
-          )}
-        </div>
-
+          ) : undefined
+        }
+      >
         {showPresetForm && (
           <div
             style={{
@@ -742,6 +899,56 @@ export default function SettingsPage(): ReactElement {
           </div>
         )}
 
+        {/* Default Preset on startup */}
+        {settings.presets.length > 0 && (
+          <div
+            style={{
+              marginBottom: 16,
+              padding: '12px 14px',
+              borderRadius: 'var(--radius-md)',
+              backgroundColor: 'rgba(0, 0, 0, 0.25)',
+              border: '1px solid rgba(255, 255, 255, 0.05)'
+            }}
+          >
+            <label
+              style={{
+                color: 'var(--text-secondary)',
+                fontSize: 11,
+                fontWeight: 600,
+                display: 'block',
+                marginBottom: 6,
+                letterSpacing: '0.05em'
+              }}
+            >
+              {t('defaultPreset').toUpperCase()}
+            </label>
+            <select
+              className="input"
+              value={settings.defaultPresetId || ''}
+              onChange={(e) => updateSettings({ defaultPresetId: e.target.value })}
+              style={{ maxWidth: 360, width: '100%' }}
+            >
+              <option value="">{t('defaultPresetNone')}</option>
+              {settings.presets.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.emoji} {p.name}
+                </option>
+              ))}
+            </select>
+            <p
+              style={{
+                color: 'var(--text-muted)',
+                fontSize: 11,
+                marginTop: 6,
+                lineHeight: 1.4,
+                margin: 0
+              }}
+            >
+              {t('defaultPresetDesc')}
+            </p>
+          </div>
+        )}
+
         <div className="flex flex-col gap-8">
           {settings.presets.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', fontSize: 14, fontStyle: 'italic' }}>
@@ -752,12 +959,29 @@ export default function SettingsPage(): ReactElement {
               const presetFormat = preset.options.format || 'audio+video'
               const audioQuality = preset.options.audioQuality || 'best'
               const videoQuality = preset.options.videoQuality || 'best'
+              const isDefault = settings.defaultPresetId === preset.id
 
               return (
-                <div key={preset.id} className="preset-card flex justify-between items-center">
+                <div
+                  key={preset.id}
+                  className="preset-card flex justify-between items-center"
+                  style={isDefault ? { borderColor: 'rgba(56, 189, 248, 0.35)' } : undefined}
+                >
                   <div>
-                    <span style={{ marginRight: 8, fontSize: 18 }}>{preset.emoji}</span>
-                    <span style={{ fontSize: 13, fontWeight: 500 }}>{preset.name}</span>
+                    <div
+                      style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}
+                    >
+                      <span style={{ marginRight: 4, fontSize: 18 }}>{preset.emoji}</span>
+                      <span style={{ fontSize: 13, fontWeight: 500 }}>{preset.name}</span>
+                      {isDefault && (
+                        <span
+                          className="badge badge-done"
+                          style={{ fontSize: 10, padding: '2px 6px' }}
+                        >
+                          ⭐ {t('isDefaultBadge')}
+                        </span>
+                      )}
+                    </div>
                     <p
                       style={{
                         color: 'var(--text-muted)',
@@ -771,7 +995,21 @@ export default function SettingsPage(): ReactElement {
                       {presetFormat !== 'audio' && ` • Video: ${videoQuality}`}
                     </p>
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    <button
+                      className="btn btn-ghost"
+                      style={{
+                        padding: '4px 8px',
+                        fontSize: 11,
+                        color: isDefault ? 'var(--text-muted)' : 'var(--accent)'
+                      }}
+                      onClick={() =>
+                        updateSettings({ defaultPresetId: isDefault ? '' : preset.id })
+                      }
+                      title={isDefault ? 'Снять выбор по умолчанию' : t('setDefaultBtn')}
+                    >
+                      {isDefault ? '✕ Снять' : `⭐ ${t('setDefaultBtn')}`}
+                    </button>
                     <button
                       className="btn btn-ghost"
                       style={{ padding: '4px 8px', fontSize: 11 }}
@@ -792,11 +1030,15 @@ export default function SettingsPage(): ReactElement {
                     <button
                       className="btn btn-danger"
                       style={{ padding: '4px 8px', fontSize: 11 }}
-                      onClick={() =>
-                        updateSettings({
+                      onClick={() => {
+                        const updates: Partial<typeof settings> = {
                           presets: settings.presets.filter((p) => p.id !== preset.id)
-                        })
-                      }
+                        }
+                        if (settings.defaultPresetId === preset.id) {
+                          updates.defaultPresetId = ''
+                        }
+                        updateSettings(updates)
+                      }}
                     >
                       {t('deleteBtn')}
                     </button>
@@ -806,13 +1048,14 @@ export default function SettingsPage(): ReactElement {
             })
           )}
         </div>
-      </section>
+      </CollapsibleSection>
 
       {/* Advanced */}
-      <section className="glass-panel" style={{ padding: 20 }}>
-        <p className="heading-sm" style={{ marginBottom: 16 }}>
-          {t('advancedSec')}
-        </p>
+      <CollapsibleSection
+        title={t('advancedSec')}
+        isOpen={Boolean(openSections.advanced)}
+        onToggle={() => toggleSection('advanced')}
+      >
         <div style={{ marginBottom: 14 }}>
           <div
             style={{
@@ -973,13 +1216,14 @@ export default function SettingsPage(): ReactElement {
           />
         </div>
         */}
-      </section>
+      </CollapsibleSection>
 
       {/* Binaries */}
-      <section className="glass-panel" style={{ padding: 20 }}>
-        <p className="heading-sm" style={{ marginBottom: 16 }}>
-          {t('componentsSec')}
-        </p>
+      <CollapsibleSection
+        title={t('componentsSec')}
+        isOpen={Boolean(openSections.components)}
+        onToggle={() => toggleSection('components')}
+      >
         <div className="toggle-wrap" style={{ marginBottom: 16 }}>
           <div>
             <p style={{ fontSize: 13 }}>{t('autoCheckUpdates')}</p>
@@ -1157,7 +1401,7 @@ export default function SettingsPage(): ReactElement {
             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{updateMsg}</span>
           )}
         </div>
-      </section>
+      </CollapsibleSection>
     </div>
   )
 }

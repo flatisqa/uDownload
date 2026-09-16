@@ -299,7 +299,8 @@ body {
 
 /* Scrollbar */
 ::-webkit-scrollbar {
-  width: 4px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -307,12 +308,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--bg-hover);
+  background: var(--border-active);
   border-radius: 99px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--border-active);
+  background: var(--text-muted);
 }
 
 /* ── App Layout ── */
@@ -334,6 +335,7 @@ body {
 .main-flex {
   display: flex;
   flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -351,6 +353,7 @@ body {
 /* ── Main Content ── */
 .main-content {
   flex: 1;
+  min-height: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -977,11 +980,17 @@ input[type='range']::-moz-range-thumb {
 /* ── Page Wrapper ── */
 .page {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
-  padding: 28px 28px;
+  overflow-x: hidden;
+  padding: 28px 28px 40px 28px;
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.page > * {
+  flex-shrink: 0;
 }
 
 .page-header {

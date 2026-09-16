@@ -103,6 +103,8 @@ export const translations = {
 
     // Settings Page
     settingsTitle: 'Settings',
+    expandAll: 'Expand all',
+    collapseAll: 'Collapse all',
     appearance: 'Appearance',
     language: 'Language',
     theme: 'Theme',
@@ -155,6 +157,11 @@ export const translations = {
     autoDetectDesc: 'When enabled, copying a YouTube URL will prompt an instant download',
 
     presetsSec: 'Smart Presets',
+    defaultPreset: 'Default preset on startup',
+    defaultPresetDesc: 'Automatically apply this preset parameters when application starts',
+    defaultPresetNone: 'None (use last saved settings)',
+    setDefaultBtn: 'Set as default',
+    isDefaultBadge: 'Default',
     addPreset: '+ Add Preset',
     cancelBtn: 'Cancel',
     savePreset: 'Save Preset',
@@ -317,6 +324,8 @@ export const translations = {
 
     // Settings Page
     settingsTitle: 'Настройки',
+    expandAll: 'Развернуть всё',
+    collapseAll: 'Свернуть всё',
     appearance: 'Внешний вид',
     language: 'Язык',
     theme: 'Тема оформления',
@@ -369,6 +378,11 @@ export const translations = {
     autoDetectDesc: 'Копирование URL автоматически предложит скачать файл',
 
     presetsSec: 'Умные Пресеты',
+    defaultPreset: 'Пресет по умолчанию при запуске',
+    defaultPresetDesc: 'Автоматически применять этот пресет при запуске приложения',
+    defaultPresetNone: 'Не выбран (последние настройки)',
+    setDefaultBtn: 'Сделать по умолчанию',
+    isDefaultBadge: 'По умолчанию',
     addPreset: '+ Создать Пресет',
     cancelBtn: 'Отмена',
     savePreset: 'Сохранить Пресет',
