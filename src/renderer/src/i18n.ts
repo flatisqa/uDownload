@@ -114,7 +114,8 @@ export const translations = {
     embedThumb: 'Embed thumbnail (album art)',
     embedMeta: 'Embed metadata (title, artist)',
     useCookies: 'COOKIES (BYPASS AGE / GEO BLOCKS)',
-    cookiesDesc: 'Required only if the video is age-restricted, region-blocked, or needs you to be logged in.',
+    cookiesDesc:
+      'Required only if the video is age-restricted, region-blocked, or needs you to be logged in.',
     useCookiesNone: 'None (public videos)',
     useCookiesWarn: 'Browser must be closed during download.',
     useCookiesBrowserLabel: 'FROM BROWSER',
@@ -122,7 +123,8 @@ export const translations = {
     cookiesFileBtn: 'Choose cookies.txt',
     cookiesFileNone: 'No file selected',
     cookiesFileClear: 'Remove',
-    cookiesFileHint: 'Export cookies.txt from your browser using any "cookies export" extension, then select the file here.',
+    cookiesFileHint:
+      'Export cookies.txt from your browser using any "cookies export" extension, then select the file here.',
 
     clipboardSec: 'Clipboard Watcher',
     autoDetect: 'Auto-detect media links',
@@ -158,7 +160,38 @@ export const translations = {
 
     // Errors
     ytdlpUpdateRequired:
-      'YouTube protection detected. Please update yt-dlp to the latest version in Settings → Components → Check for updates'
+      'YouTube protection detected. Please update yt-dlp to the latest version in Settings → Components → Check for updates',
+    ytBotProtectionTitle: 'YouTube Authorization Required (Bot Protection)',
+    ytBotProtectionDesc:
+      'YouTube blocked the download as suspicious. To bypass this, use cookies from your browser.',
+    errorOccurred: 'An error occurred:',
+    ytdlpSupports1000: 'yt-dlp supports 1000+ services',
+
+    // Audio quality hints
+    audioHintBest:
+      '\u2705 Best downloads in Opus — YouTube native format. No re-encoding, original quality. Smaller than MP3, better quality. (\u26a0\ufe0f Cover art and tags are NOT embedded)',
+    audioHintLossy:
+      '\u2139\ufe0f Choosing a higher bitrate will not improve quality. Re-encoding to 320k only increases file size.',
+    audioHintOther:
+      '\u26a0\ufe0f For FLAC, Opus, AAC — cover art and metadata are NOT embedded. Choose MP3 if you need embedded cover art.',
+
+    // Format options
+    formatAudioOnly: 'Audio only',
+    formatVideoOnly: 'Video only',
+    formatAudioVideo: 'Audio + Video',
+
+    // Bitrate info
+    originalBitrateLabel: 'Original audio bitrate:',
+
+    // Conflicts
+    conflictTitleFile: 'File already exists',
+    conflictTitleFolder: 'Folder already exists',
+    conflictDescFile:
+      'A file with this name already exists in the destination folder. Do you want to download it again?',
+    conflictDescFolder:
+      'A folder with this name already exists in the destination folder. Do you want to continue and download into it?',
+    conflictDownloadAnyway: 'Download anyway',
+    conflictCancel: 'Cancel'
   },
   ru: {
     // Navigation
@@ -273,7 +306,8 @@ export const translations = {
     embedThumb: 'Встроить обложку (thumbnail)',
     embedMeta: 'Встроить метаданные (название, артист)',
     useCookies: 'COOKIES (ОБХОД БЛОКИРОВОК)',
-    cookiesDesc: 'Нужны только если видео заблокировано в вашем регионе, требует входа в аккаунт или ограничено по возрасту.',
+    cookiesDesc:
+      'Нужны только если видео заблокировано в вашем регионе, требует входа в аккаунт или ограничено по возрасту.',
     useCookiesNone: 'Нет (публичные видео)',
     useCookiesWarn: 'Браузер должен быть закрыт во время скачивания.',
     useCookiesBrowserLabel: 'ИЗ БРАУЗЕРА',
@@ -281,7 +315,8 @@ export const translations = {
     cookiesFileBtn: 'Выбрать cookies.txt',
     cookiesFileNone: 'Файл не выбран',
     cookiesFileClear: 'Сбросить',
-    cookiesFileHint: 'Экспортируйте cookies.txt из браузера с помощью любого расширения «экспорт cookies», затем выберите файл здесь.',
+    cookiesFileHint:
+      'Экспортируйте cookies.txt из браузера с помощью любого расширения «экспорт cookies», затем выберите файл здесь.',
 
     clipboardSec: 'Перехват буфера обмена',
     autoDetect: 'Автоопределение медиа ссылок',
@@ -318,7 +353,38 @@ export const translations = {
 
     // Errors
     ytdlpUpdateRequired:
-      'Обнаружена защита YouTube. Пожалуйста, обновите yt-dlp до последней версии в Настройки → Компоненты → Проверить обновления'
+      'Обнаружена защита YouTube. Пожалуйста, обновите yt-dlp до последней версии в Настройки → Компоненты → Проверить обновления',
+    ytBotProtectionTitle: 'Требуется авторизация YouTube (Защита от ботов)',
+    ytBotProtectionDesc:
+      'YouTube заблокировал загрузку, так как считает этот запрос подозрительным. Чтобы обойти это, необходимо использовать cookies из вашего браузера.',
+    errorOccurred: 'Произошла ошибка:',
+    ytdlpSupports1000: 'yt-dlp поддерживает 1000+ сервисов',
+
+    // Audio quality hints
+    audioHintBest:
+      '✅ Best скачивает в Opus — родном формате YouTube. Никакого перекодирования, оригинальное качество. Файл меньше MP3, а качество выше. (⚠️ Обложки и теги не встраиваются)',
+    audioHintLossy:
+      'ℹ️ Выбор более высокого bitrate не улучшит качество. Перекодирование в 320k лишь увеличит размер файла.',
+    audioHintOther:
+      '⚠️ Для FLAC, Opus, AAC — обложки и метаданные не встраиваются. Выбирайте MP3, если нужны обложки в файле.',
+
+    // Format options
+    formatAudioOnly: 'Только аудио',
+    formatVideoOnly: 'Только видео',
+    formatAudioVideo: 'Аудио + Видео',
+
+    // Bitrate info
+    originalBitrateLabel: 'Оригинальный битрейт аудио:',
+
+    // Conflicts
+    conflictTitleFile: 'Файл уже существует',
+    conflictTitleFolder: 'Папка уже существует',
+    conflictDescFile:
+      'В папке назначения уже найден файл с таким именем. Вы хотите скачать его заново?',
+    conflictDescFolder:
+      'В папке назначения уже есть папка с таким названием. Вы хотите продолжить скачивание в неё?',
+    conflictDownloadAnyway: 'Всё равно скачать',
+    conflictCancel: 'Отмена'
   }
 }
 

@@ -24,9 +24,11 @@ interface RawChapter {
 interface RawEntry {
   id: string
   title: string
-  webpage_url: string
+  webpage_url?: string
+  url?: string
   duration?: number
   thumbnail?: string
+  thumbnails?: Array<{ url: string }>
 }
 
 interface RawYtdlpInfo {
@@ -36,6 +38,7 @@ interface RawYtdlpInfo {
   channel?: string
   duration?: number
   thumbnail?: string
+  thumbnails?: Array<{ url: string }>
   webpage_url: string
   _type?: string
   entries?: RawEntry[]
@@ -61,10 +64,11 @@ export async function fetchMetadata(
 ): Promise<VideoMetadata> {
   const bin = getYtdlpBin()
 
+  const isPlaylistUrl = url.includes('list=') || url.includes('/playlist')
   const args = [
-    '--dump-json',
-    '--no-playlist', // try single first; will retry with playlist logic
-    '--flat-playlist' // for playlists: fast, only get entries info
+    '--dump-single-json',
+    '--flat-playlist',
+    isPlaylistUrl ? '--yes-playlist' : '--no-playlist'
   ]
 
   if (cookiesFilePath && fs.existsSync(cookiesFilePath)) {
@@ -100,26 +104,36 @@ export async function fetchMetadata(
 }
 
 function parseMetadataResponse(stdout: string, url: string): VideoMetadata {
-  const lines = stdout.trim().split('\n').filter(Boolean)
-  const first: RawYtdlpInfo = JSON.parse(lines[0])
+  let parsedData: RawYtdlpInfo
+  const trimmed = stdout.trim()
+  try {
+    parsedData = JSON.parse(trimmed)
+  } catch {
+    const lines = trimmed.split('\n').filter(Boolean)
+    parsedData = JSON.parse(lines[0])
+  }
 
-  const isPlaylist = first._type === 'playlist' || lines.length > 1
+  const isPlaylist = parsedData._type === 'playlist' || Array.isArray(parsedData.entries)
 
   let playlistItems: PlaylistItem[] | undefined
-  if (isPlaylist && first.entries) {
-    playlistItems = first.entries.map(
+  if (isPlaylist && parsedData.entries) {
+    playlistItems = parsedData.entries.map(
       (e, i): PlaylistItem => ({
-        id: e.id || String(i),
-        title: e.title,
-        url: e.webpage_url,
+        id: String(i + 1),
+        title: e.title || `Track ${i + 1}`,
+        url: e.webpage_url || e.url || (e.id ? `https://www.youtube.com/watch?v=${e.id}` : ''),
         duration: e.duration || 0,
-        thumbnail: e.thumbnail || '',
+        thumbnail:
+          e.thumbnail ||
+          (e.thumbnails && e.thumbnails.length > 0
+            ? e.thumbnails[e.thumbnails.length - 1].url
+            : ''),
         selected: true
       })
     )
   }
 
-  const chapters: ChapterInfo[] | undefined = first.chapters?.map(
+  const chapters: ChapterInfo[] | undefined = parsedData.chapters?.map(
     (c, i): ChapterInfo => ({
       id: String(i),
       title: c.title,
@@ -133,8 +147,8 @@ function parseMetadataResponse(stdout: string, url: string): VideoMetadata {
   const formatsSet = new Set<string>()
   let maxAbr = 0
 
-  if (first.formats) {
-    for (const f of first.formats) {
+  if (parsedData.formats) {
+    for (const f of parsedData.formats) {
       if (f.ext) formatsSet.add(f.ext)
       // Check audio bitrate directly
       if (f.abr && f.abr > maxAbr) {
@@ -149,24 +163,28 @@ function parseMetadataResponse(stdout: string, url: string): VideoMetadata {
 
   console.log('[DEBUG] First format audio extraction:', {
     maxAbr,
-    countFormats: first.formats?.length,
-    audioFormatsExample: first.formats?.filter((f) => f.acodec !== 'none').slice(0, 3)
+    countFormats: parsedData.formats?.length,
+    audioFormatsExample: parsedData.formats?.filter((f) => f.acodec !== 'none').slice(0, 3)
   })
 
   return {
-    id: first.id,
-    title: first.title,
-    author: first.uploader || first.channel || 'Unknown',
-    duration: first.duration || 0,
-    thumbnail: first.thumbnail || '',
-    url: first.webpage_url || url,
+    id: parsedData.id,
+    title: parsedData.title,
+    author: parsedData.uploader || parsedData.channel || 'Unknown',
+    duration: parsedData.duration || 0,
+    thumbnail:
+      parsedData.thumbnail ||
+      (parsedData.thumbnails && parsedData.thumbnails.length > 0
+        ? parsedData.thumbnails[parsedData.thumbnails.length - 1].url
+        : (playlistItems && playlistItems[0]?.thumbnail) || ''),
+    url: parsedData.webpage_url || url,
     isPlaylist,
     playlistItems,
     chapters,
     availableFormats: Array.from(formatsSet),
     originalAudioBitrate: maxAbr > 0 ? Math.round(maxAbr) : undefined,
-    description: first.description,
-    uploadDate: first.upload_date
+    description: parsedData.description,
+    uploadDate: parsedData.upload_date
   }
 }
 
@@ -186,6 +204,7 @@ export function buildYtdlpArgs(options: {
   cookiesManual?: string
   cookiesFilePath?: string
   selectedChapters?: string[]
+  playlistAll?: boolean
   selectedPlaylistItems?: string[]
   timeFrom?: string
   timeTo?: string
@@ -201,6 +220,9 @@ export function buildYtdlpArgs(options: {
 
   // Ensure progress is emitted line-by-line instead of \r
   args.push('--newline')
+
+  // Always force overwrites when downloading/re-downloading to prevent FFmpeg crashes on existing files with embedded art
+  args.push('--force-overwrites')
 
   // FFmpeg location - only pass if it looks like a path (has slash or backslash)
   if (options.ffmpegBin.includes('/') || options.ffmpegBin.includes('\\')) {
@@ -221,7 +243,6 @@ export function buildYtdlpArgs(options: {
   const selectedChaptersCount = options.selectedChapters ? options.selectedChapters.length : 0
 
   // Chapter processing logic
-  const hasMultipleChapters = selectedChaptersCount > 1
   const isSingleChapter = selectedChaptersCount === 1
 
   // Use custom title for file name if provided, otherwise yt-dlp title
@@ -232,28 +253,6 @@ export function buildYtdlpArgs(options: {
         .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
         .trim()
     : '%(title)s'
-
-  if (hasMultipleChapters && options.format === 'audio') {
-    // Construct the subfolder path named after the video
-    const chapterOutputDir = path.join(outputPath, titleTemplate)
-    const chapterTemplate = path.join(
-      chapterOutputDir,
-      '%(section_number)03d - %(section_title)s.%(ext)s'
-    )
-
-    // Always use chapter: prefix for anything related to chapters (split all or manual selection)
-    // and default: for the main video file.
-    const outputTemplate = path.join(outputPath, `${titleTemplate}.%(ext)s`)
-    args.push('-o', `default:${outputTemplate}`)
-    args.push('-o', `chapter:${chapterTemplate}`)
-  } else if (isSingleChapter && options.format === 'audio') {
-    // For a single chapter, use customTitle directly (already includes chapter info from DownloaderPage)
-    const outputTemplate = path.join(outputPath, `${titleTemplate}.%(ext)s`)
-    args.push('-o', outputTemplate)
-  } else {
-    const outputTemplate = path.join(outputPath, `${titleTemplate}.%(ext)s`)
-    args.push('-o', outputTemplate)
-  }
 
   // Format selection
   if (options.format === 'audio') {
@@ -330,7 +329,12 @@ export function buildYtdlpArgs(options: {
   // 1. --replace-in-metadata for raw text fields (handles () signs better than regex)
   // 2. --parse-metadata for date fields (avoids "unconverted data" error in some yt-dlp versions)
   // 3. Clear webpage_url if custom description is provided (prevents automatic URL injection into Comment tag)
-  if (options.customTitle) {
+  const isPlaylistDownload = Boolean(
+    options.playlistAll ||
+    (options.selectedPlaylistItems && options.selectedPlaylistItems.length > 0)
+  )
+
+  if (options.customTitle && !isPlaylistDownload) {
     args.push('--replace-in-metadata', 'title', '(?s)^.*$', options.customTitle)
   }
   if (options.customArtist) {
@@ -363,8 +367,14 @@ export function buildYtdlpArgs(options: {
   }
 
   // Playlist Items
-  if (options.selectedPlaylistItems && options.selectedPlaylistItems.length > 0) {
+  if (
+    options.selectedPlaylistItems &&
+    options.selectedPlaylistItems.length > 0 &&
+    !options.playlistAll
+  ) {
     args.push('--playlist-items', options.selectedPlaylistItems.join(','))
+  } else if (options.playlistAll) {
+    args.push('--yes-playlist')
   }
 
   // Chapters & Timing
@@ -388,7 +398,10 @@ export function buildYtdlpArgs(options: {
   // We use simpler logic now since DownloaderPage handles folder creation.
   // (Variables selectedChaptersCount and isSingleChapter are already defined above)
 
-  if (isSingleChapter && options.format === 'audio') {
+  if (isPlaylistDownload) {
+    const outputTemplate = path.join(outputPath, '%(playlist_index&{:02d}. |)s%(title)s.%(ext)s')
+    args.push('-o', outputTemplate)
+  } else if (isSingleChapter && options.format === 'audio') {
     // If we have a custom title from UI (which includes chapter title), use it directly
     const chapterTemplate = options.customTitle
       ? path.join(outputPath, `${titleTemplate}.%(ext)s`)

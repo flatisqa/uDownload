@@ -20,7 +20,8 @@ interface Window {
     }>
     startDownload: (
       url: string,
-      options: import('@shared/types/download').DownloadOptions
+      options: import('@shared/types/download').DownloadOptions,
+      playlistProgress?: import('@shared/types/download').PlaylistProgress
     ) => Promise<{ success: boolean; data?: string; error?: string }>
     cancelDownload: (jobId: string) => Promise<{ success: boolean; error?: string }>
     resumeDownload: (jobId: string) => Promise<{ success: boolean; error?: string }>
@@ -54,5 +55,11 @@ interface Window {
     generateId: () => string
     pathExists: (dirPath: string) => Promise<boolean>
     sanitizeName: (name: string) => Promise<string>
+    checkConflict: (
+      outputPath: string,
+      title: string,
+      isPlaylistOrAlbum: boolean,
+      format: string
+    ) => Promise<{ exists: boolean; isDirectory: boolean; path: string; name: string }>
   }
 }

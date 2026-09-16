@@ -7,12 +7,26 @@ import type { DownloadOptions } from '@shared/types/download'
 // ────────────────────────────────────────────────
 const api = {
   // Metadata
-  fetchMetadata: (url: string, cookiesFromBrowser?: string, cookiesManual?: string, cookiesFilePath?: string) =>
-    ipcRenderer.invoke('download:fetchMetadata', url, cookiesFromBrowser, cookiesManual, cookiesFilePath),
+  fetchMetadata: (
+    url: string,
+    cookiesFromBrowser?: string,
+    cookiesManual?: string,
+    cookiesFilePath?: string
+  ) =>
+    ipcRenderer.invoke(
+      'download:fetchMetadata',
+      url,
+      cookiesFromBrowser,
+      cookiesManual,
+      cookiesFilePath
+    ),
 
   // Downloads
-  startDownload: (url: string, options: DownloadOptions) =>
-    ipcRenderer.invoke('download:start', url, options),
+  startDownload: (
+    url: string,
+    options: DownloadOptions,
+    playlistProgress?: import('@shared/types/download').PlaylistProgress
+  ) => ipcRenderer.invoke('download:start', url, options, playlistProgress),
 
   cancelDownload: (jobId: string) => ipcRenderer.invoke('download:cancel', jobId),
 
@@ -73,7 +87,20 @@ const api = {
 
   // Filesystem
   pathExists: (dirPath: string) => ipcRenderer.invoke('fs:pathExists', dirPath) as Promise<boolean>,
-  sanitizeName: (name: string) => ipcRenderer.invoke('fs:sanitizeName', name) as Promise<string>
+  sanitizeName: (name: string) => ipcRenderer.invoke('fs:sanitizeName', name) as Promise<string>,
+  checkConflict: (outputPath: string, title: string, isPlaylistOrAlbum: boolean, format: string) =>
+    ipcRenderer.invoke(
+      'fs:checkConflict',
+      outputPath,
+      title,
+      isPlaylistOrAlbum,
+      format
+    ) as Promise<{
+      exists: boolean
+      isDirectory: boolean
+      path: string
+      name: string
+    }>
 }
 
 if (process.contextIsolated) {

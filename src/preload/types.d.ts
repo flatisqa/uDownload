@@ -7,6 +7,11 @@ import type {
 } from '@shared/types/download'
 
 export interface IElectronAPI {
+  // Window management
+  minimizeWindow: () => void
+  maximizeWindow: () => void
+  closeWindow: () => void
+  // Metadata & Downloads
   fetchMetadata: (
     url: string,
     cookiesFromBrowser?: string,
@@ -38,6 +43,18 @@ export interface IElectronAPI {
     isPlaylistOrAlbum: boolean,
     format: string
   ) => Promise<{ exists: boolean; isDirectory: boolean; path: string; name: string }>
+  // Dependencies check
+  checkDependencies: () => Promise<{
+    success: boolean
+    data?: { ytDlp: boolean; ffmpeg: boolean; allInstalled: boolean }
+    error?: string
+  }>
+  isFirstRun: () => Promise<{ success: boolean; data?: boolean }>
+  markFirstRunCompleted: () => Promise<{ success: boolean }>
+  installDependency: (component: 'yt-dlp' | 'ffmpeg') => Promise<{
+    success: boolean
+    error?: string
+  }>
   onDownloadProgress: (callback: (data: object) => void) => () => void
   onDownloadCompleted: (callback: (data: object) => void) => () => void
   onDownloadError: (callback: (data: object) => void) => () => void

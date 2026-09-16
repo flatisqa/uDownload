@@ -2,12 +2,19 @@ import { ipcMain, dialog, BrowserWindow, shell } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 import Store from 'electron-store'
 import fs from 'fs'
+import path from 'path'
+import os from 'os'
 
 import { fetchMetadata } from '../services/MetadataService'
 import { downloadQueue } from '../services/DownloadQueueManager'
 import * as BinaryManager from '../services/BinaryManager'
 import { clipboardWatcher } from '../services/ClipboardWatcher'
-import type { DownloadOptions, AppConfig } from '@shared/types/download'
+import type {
+  DownloadOptions,
+  AppConfig,
+  DownloadJob,
+  PlaylistProgress
+} from '@shared/types/download'
 import { DEFAULT_CONFIG } from '@shared/types/download'
 
 // Persistent settings store
@@ -17,9 +24,20 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // ─── Metadata ─────────────────────────────────────────────────────────────
   ipcMain.handle(
     'download:fetchMetadata',
-    async (_e, url: string, cookiesFromBrowser?: string, cookiesManual?: string, cookiesFilePath?: string) => {
+    async (
+      _e,
+      url: string,
+      cookiesFromBrowser?: string,
+      cookiesManual?: string,
+      cookiesFilePath?: string
+    ) => {
       try {
-        console.log('[IPC] fetchMetadata called with:', { url, cookiesFromBrowser, cookiesManual, cookiesFilePath })
+        console.log('[IPC] fetchMetadata called with:', {
+          url,
+          cookiesFromBrowser,
+          cookiesManual,
+          cookiesFilePath
+        })
         const data = await fetchMetadata(url, cookiesFromBrowser, cookiesManual, cookiesFilePath)
         console.log('[IPC] fetchMetadata success:', data.title)
         return { success: true, data }
@@ -31,23 +49,27 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   )
 
   // ─── Download ──────────────────────────────────────────────────────────────
-  ipcMain.handle('download:start', async (_e, url: string, options: DownloadOptions) => {
-    try {
-      const jobId = uuidv4()
-      const job = {
-        id: jobId,
-        url,
-        options,
-        status: 'pending' as const,
-        progress: 0,
-        createdAt: Date.now()
+  ipcMain.handle(
+    'download:start',
+    async (_e, url: string, options: DownloadOptions, playlistProgress?: PlaylistProgress) => {
+      try {
+        const jobId = uuidv4()
+        const job: DownloadJob = {
+          id: jobId,
+          url,
+          options,
+          status: 'pending' as const,
+          progress: 0,
+          createdAt: Date.now(),
+          playlistProgress
+        }
+        downloadQueue.enqueue(job)
+        return { success: true, data: jobId }
+      } catch (error) {
+        return { success: false, error: String(error) }
       }
-      downloadQueue.enqueue(job)
-      return { success: true, data: jobId }
-    } catch (error) {
-      return { success: false, error: String(error) }
     }
-  })
+  )
 
   ipcMain.handle('download:cancel', async (_e, jobId: string) => {
     try {
@@ -90,7 +112,21 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   ipcMain.handle('settings:get', async () => {
     try {
       const data = store.store as AppConfig
-      return { success: true, data }
+      const defaultAudio = path.join(os.homedir(), 'Music')
+      const defaultVideo = path.join(os.homedir(), 'Videos')
+      const effectiveAudio = data.outputDirectoryAudio?.trim() || defaultAudio
+      const effectiveVideo = data.outputDirectoryVideo?.trim() || defaultVideo
+
+      if (!data.outputDirectoryAudio) store.set('outputDirectoryAudio', effectiveAudio)
+      if (!data.outputDirectoryVideo) store.set('outputDirectoryVideo', effectiveVideo)
+
+      const effectiveData: AppConfig = {
+        ...DEFAULT_CONFIG,
+        ...data,
+        outputDirectoryAudio: effectiveAudio,
+        outputDirectoryVideo: effectiveVideo
+      }
+      return { success: true, data: effectiveData }
     } catch (error) {
       return { success: false, error: String(error) }
     }
@@ -184,6 +220,81 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
     // Replace characters not allowed in folder names
     return name.replace(/[\\/:*?"<>|]/g, '_').trim()
   })
+
+  ipcMain.handle(
+    'fs:checkConflict',
+    (
+      _e,
+      outputPath: string,
+      title: string,
+      isPlaylistOrAlbum: boolean,
+      format: string
+    ): { exists: boolean; isDirectory: boolean; path: string; name: string } => {
+      try {
+        let targetOutputDir = outputPath?.trim() || ''
+        const config = store.store as Partial<AppConfig>
+        const defaultAudio =
+          config?.outputDirectoryAudio?.trim() || path.join(os.homedir(), 'Music')
+        const defaultVideo =
+          config?.outputDirectoryVideo?.trim() || path.join(os.homedir(), 'Videos')
+        const defaultBaseDir = format === 'audio' ? defaultAudio : defaultVideo
+
+        const isBareRoot = Boolean(
+          targetOutputDir && /^\/[^/]+$/.test(targetOutputDir) && !fs.existsSync(targetOutputDir)
+        )
+
+        if (!targetOutputDir || isBareRoot || !path.isAbsolute(targetOutputDir)) {
+          targetOutputDir = defaultBaseDir
+        }
+
+        const sanitized = title.replace(/[\\/:*?"<>|]/g, '_').trim()
+        if (isPlaylistOrAlbum) {
+          // If targetOutputDir already points to the album/playlist directory, check it directly
+          let dirPath = path.join(targetOutputDir, sanitized)
+          if (
+            path.basename(targetOutputDir).toLowerCase() === sanitized.toLowerCase() &&
+            fs.existsSync(targetOutputDir)
+          ) {
+            dirPath = targetOutputDir
+          }
+
+          if (fs.existsSync(dirPath)) {
+            const stats = fs.statSync(dirPath)
+            if (stats.isDirectory()) {
+              const files = fs.readdirSync(dirPath)
+              if (files.length > 0) {
+                return {
+                  exists: true,
+                  isDirectory: true,
+                  path: dirPath,
+                  name: path.basename(dirPath)
+                }
+              }
+            }
+          }
+        } else {
+          const audioExts = ['opus', 'mp3', 'flac', 'aac', 'm4a', 'wav', 'ogg']
+          const videoExts = ['mp4', 'mkv', 'webm', 'mov']
+          const checkExts = format === 'audio' ? audioExts : [...videoExts, ...audioExts]
+
+          for (const ext of checkExts) {
+            const filePath = path.join(targetOutputDir, `${sanitized}.${ext}`)
+            if (fs.existsSync(filePath)) {
+              return {
+                exists: true,
+                isDirectory: false,
+                path: filePath,
+                name: `${sanitized}.${ext}`
+              }
+            }
+          }
+        }
+        return { exists: false, isDirectory: false, path: '', name: '' }
+      } catch {
+        return { exists: false, isDirectory: false, path: '', name: '' }
+      }
+    }
+  )
 
   // ─── Window Management ─────────────────────────────────────────────────────
   ipcMain.on('window:minimize', () => {
