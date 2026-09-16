@@ -16,7 +16,8 @@ export interface IElectronAPI {
   startDownload: (
     url: string,
     options: DownloadOptions,
-    playlistProgress?: PlaylistProgress
+    playlistProgress?: PlaylistProgress,
+    metadata?: VideoMetadata
   ) => Promise<{ success: boolean; data?: string; error?: string }>
   cancelDownload: (jobId: string) => Promise<{ success: boolean }>
   resumeDownload: (jobId: string) => Promise<{ success: boolean }>

@@ -1,4 +1,4 @@
-import { spawn, ChildProcess } from 'child_process'
+import { spawn, spawnSync, ChildProcess } from 'child_process'
 import * as path from 'path'
 import * as os from 'os'
 import * as fs from 'fs'
@@ -164,6 +164,18 @@ export class DownloadQueueManager extends EventEmitter {
       })
       this.tick()
       return
+    }
+
+    const isDedicatedFolder = Boolean(
+      (job.options.trackSections && job.options.trackSections.length > 0) ||
+      (job.metadata?.isPlaylist && (job.playlistProgress?.items?.length ?? 0) > 1) ||
+      (job.options.selectedPlaylistItems && job.options.selectedPlaylistItems.length > 1) ||
+      (job.playlistProgress && job.playlistProgress.items.length > 1) ||
+      (job.options.selectedChapters && job.options.selectedChapters.length > 1)
+    )
+
+    if (isDedicatedFolder) {
+      this.ensureFolderCoverArt(outputPath, job, ffmpeg).catch(() => {})
     }
 
     const outputTemplate = path.join(outputPath, '%(title)s.%(ext)s')
@@ -483,6 +495,9 @@ export class DownloadQueueManager extends EventEmitter {
 
       this.active.delete(job.id)
       if (code === 0) {
+        if (isDedicatedFolder) {
+          this.ensureFolderCoverArt(outputPath, job, ffmpeg).catch(() => {})
+        }
         if (entry?.playlistProgress) {
           for (const item of entry.playlistProgress.items) {
             item.status = 'done'
@@ -514,6 +529,159 @@ export class DownloadQueueManager extends EventEmitter {
       this.emit('error', { id: job.id, status: 'error', error: err.message })
       this.tick()
     })
+  }
+
+  private async ensureFolderCoverArt(
+    outputPath: string,
+    job: DownloadJob,
+    ffmpegBin: string
+  ): Promise<Buffer | null> {
+    try {
+      if (!fs.existsSync(outputPath)) {
+        fs.mkdirSync(outputPath, { recursive: true })
+      }
+      const coverJpgPath = path.join(outputPath, 'cover.jpg')
+
+      let coverBuffer: Buffer | null = null
+
+      // If cover.jpg already exists, read it
+      if (fs.existsSync(coverJpgPath)) {
+        try {
+          coverBuffer = fs.readFileSync(coverJpgPath)
+        } catch {
+          /* ignore */
+        }
+      }
+
+      // 1. Custom thumbnail (local path or http URL)
+      if (!coverBuffer && job.options.customThumbnail) {
+        if (fs.existsSync(job.options.customThumbnail)) {
+          try {
+            coverBuffer = fs.readFileSync(job.options.customThumbnail)
+          } catch {
+            /* ignore */
+          }
+        } else if (job.options.customThumbnail.startsWith('http')) {
+          try {
+            const res = await fetch(job.options.customThumbnail)
+            if (res.ok) {
+              const ab = await res.arrayBuffer()
+              coverBuffer = Buffer.from(ab)
+            }
+          } catch (e) {
+            console.warn('[DownloadQueueManager] Failed to fetch customThumbnail URL:', e)
+          }
+        }
+      }
+
+      // 2. Metadata thumbnail
+      const metaThumb =
+        job.metadata?.thumbnail ||
+        job.metadata?.playlistItems?.[0]?.thumbnail ||
+        job.playlistProgress?.items?.[0]?.thumbnail
+
+      if (!coverBuffer && metaThumb) {
+        try {
+          const res = await fetch(metaThumb)
+          if (res.ok) {
+            const ab = await res.arrayBuffer()
+            coverBuffer = Buffer.from(ab)
+          }
+        } catch (e) {
+          console.warn('[DownloadQueueManager] Failed to fetch metadata thumbnail:', e)
+        }
+      }
+
+      // 3. Fallback: YouTube URL direct thumbnail
+      if (!coverBuffer && job.url) {
+        const match = job.url.match(/(?:v=|youtu\.be\/|shorts\/)([a-zA-Z0-9_-]{11})/)
+        if (match && match[1]) {
+          const videoId = match[1]
+          for (const quality of ['maxresdefault', 'hqdefault', 'mqdefault']) {
+            try {
+              const res = await fetch(`https://i.ytimg.com/vi/${videoId}/${quality}.jpg`)
+              if (res.ok) {
+                const ab = await res.arrayBuffer()
+                if (ab.byteLength > 2000) {
+                  coverBuffer = Buffer.from(ab)
+                  break
+                }
+              }
+            } catch {
+              /* ignore */
+            }
+          }
+        }
+      }
+
+      // 4. Fallback: check files in outputPath
+      if (!coverBuffer && fs.existsSync(outputPath)) {
+        try {
+          const files = fs.readdirSync(outputPath)
+          const imgFile = files.find(
+            (f) =>
+              (f.startsWith('__master_') || f.toLowerCase().includes('cover')) &&
+              /\.(jpe?g|png|webp)$/i.test(f)
+          )
+          if (imgFile) {
+            coverBuffer = fs.readFileSync(path.join(outputPath, imgFile))
+          }
+        } catch {
+          /* ignore */
+        }
+      }
+
+      if (coverBuffer) {
+        // If not jpeg (e.g. webp or png), convert to jpeg via ffmpeg for maximum compatibility
+        const isJpeg =
+          coverBuffer.length > 3 &&
+          coverBuffer[0] === 0xff &&
+          coverBuffer[1] === 0xd8 &&
+          coverBuffer[2] === 0xff
+
+        if (!isJpeg && ffmpegBin) {
+          try {
+            const tempIn = path.join(outputPath, `__temp_cover_in_${job.id}`)
+            const tempJpg = path.join(outputPath, `__temp_cover_${job.id}.jpg`)
+            fs.writeFileSync(tempIn, coverBuffer)
+            const res = spawnSync(ffmpegBin, ['-y', '-i', tempIn, tempJpg])
+            if (res.status === 0 && fs.existsSync(tempJpg)) {
+              coverBuffer = fs.readFileSync(tempJpg)
+            }
+            if (fs.existsSync(tempIn)) fs.unlinkSync(tempIn)
+            if (fs.existsSync(tempJpg)) fs.unlinkSync(tempJpg)
+          } catch (e) {
+            console.warn('[DownloadQueueManager] Image conversion to JPEG failed:', e)
+          }
+        }
+
+        // Save cover.jpg in the directory
+        if (!fs.existsSync(coverJpgPath)) {
+          fs.writeFileSync(coverJpgPath, coverBuffer)
+        }
+
+        // On Linux (Ubuntu / GNOME Nautilus), set custom folder icon via gio
+        if (process.platform === 'linux' && fs.existsSync(coverJpgPath)) {
+          try {
+            spawn('gio', [
+              'set',
+              '-t',
+              'string',
+              outputPath,
+              'metadata::custom-icon',
+              `file://${coverJpgPath}`
+            ])
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+
+      return coverBuffer
+    } catch (e) {
+      console.warn('[DownloadQueueManager] ensureFolderCoverArt error:', e)
+      return null
+    }
   }
 
   private startMultiTrackJob(job: DownloadJob): void {
@@ -613,14 +781,9 @@ export class DownloadQueueManager extends EventEmitter {
     const ytdlp = getYtdlpBin()
     const ffmpeg = getFfmpegBin()
 
+    const q = job.options.audioQuality
     const ext =
-      job.options.audioQuality === 'mp3'
-        ? 'mp3'
-        : job.options.audioQuality === 'flac'
-          ? 'flac'
-          : job.options.audioQuality === 'aac'
-            ? 'm4a'
-            : 'opus'
+      q === 'flac' ? 'flac' : q === 'aac' ? 'm4a' : q === 'opus' || q === 'best' ? 'opus' : 'mp3'
 
     const masterPrefix = `__master_${job.id}`
     const masterTemplate = path.join(outputPath, `${masterPrefix}.%(ext)s`)
@@ -646,7 +809,7 @@ export class DownloadQueueManager extends EventEmitter {
       timeTo: undefined,
       customArgs: job.options.customArgs,
       ffmpegBin: ffmpeg,
-      customTitle: masterPrefix,
+      customTitle: undefined,
       customThumbnail: job.options.customThumbnail,
       customArtist: job.options.customArtist,
       customYear: job.options.customYear,
@@ -779,6 +942,13 @@ export class DownloadQueueManager extends EventEmitter {
       try {
         const files = fs.readdirSync(outputPath)
         foundMaster = files.find((f) => f.startsWith(masterPrefix))
+        if (!foundMaster) {
+          const audioExts = ['.opus', '.mp3', '.m4a', '.flac', '.webm', '.ogg', '.aac']
+          foundMaster = files.find((f) => {
+            const fileExt = path.extname(f).toLowerCase()
+            return audioExts.includes(fileExt) && !/^\d{2}\.\s/.test(f) && f !== 'cover.jpg'
+          })
+        }
       } catch {
         // Ignore read error
       }
@@ -813,6 +983,54 @@ export class DownloadQueueManager extends EventEmitter {
         playlistProgress: entry.playlistProgress
       })
 
+      // Fetch / extract cover art into cover.jpg
+      const coverBuffer = await this.ensureFolderCoverArt(outputPath, job, ffmpeg)
+      const coverJpgPath = path.join(outputPath, 'cover.jpg')
+
+      // Generate VorbisComment picture block for Opus / FLAC if cover exists
+      let vorbisPictureBase64: string | null = null
+      if (coverBuffer && (masterExt === 'opus' || masterExt === 'flac' || masterExt === 'ogg')) {
+        try {
+          let mime = 'image/jpeg'
+          if (
+            coverBuffer[0] === 0x89 &&
+            coverBuffer[1] === 0x50 &&
+            coverBuffer[2] === 0x4e &&
+            coverBuffer[3] === 0x47
+          ) {
+            mime = 'image/png'
+          }
+          const mimeBuf = Buffer.from(mime, 'ascii')
+          const buf = Buffer.alloc(32 + mimeBuf.length + coverBuffer.length)
+          let offset = 0
+          buf.writeUInt32BE(3, offset)
+          offset += 4 // Cover (front)
+          buf.writeUInt32BE(mimeBuf.length, offset)
+          offset += 4
+          mimeBuf.copy(buf, offset)
+          offset += mimeBuf.length
+          buf.writeUInt32BE(0, offset)
+          offset += 4 // desc length
+          buf.writeUInt32BE(0, offset)
+          offset += 4 // width
+          buf.writeUInt32BE(0, offset)
+          offset += 4 // height
+          buf.writeUInt32BE(24, offset)
+          offset += 4 // color depth
+          buf.writeUInt32BE(0, offset)
+          offset += 4 // indexed colors
+          buf.writeUInt32BE(coverBuffer.length, offset)
+          offset += 4
+          coverBuffer.copy(buf, offset)
+          vorbisPictureBase64 = buf.toString('base64')
+        } catch {
+          // ignore Vorbis picture block creation error
+        }
+      }
+
+      const albumTitle = job.metadata?.title || ''
+      const artistName = job.options.customArtist || job.metadata?.author || ''
+
       for (let i = 0; i < totalTracks; i++) {
         if (entry.isCancelled) break
 
@@ -828,15 +1046,75 @@ export class DownloadQueueManager extends EventEmitter {
           '-to',
           String(track.endTime),
           '-i',
-          masterAudioPath,
-          '-c',
-          'copy',
+          masterAudioPath
+        ]
+
+        const hasMp3OrM4aCover =
+          fs.existsSync(coverJpgPath) && (masterExt === 'mp3' || masterExt === 'm4a')
+
+        if (hasMp3OrM4aCover) {
+          ffmpegArgs.push('-i', coverJpgPath, '-map', '0:a', '-map', '1:v')
+          if (masterExt === 'mp3') {
+            ffmpegArgs.push(
+              '-c',
+              'copy',
+              '-id3v2_version',
+              '3',
+              '-metadata:s:v',
+              'title=Album cover',
+              '-metadata:s:v',
+              'comment=Cover (front)'
+            )
+          } else {
+            ffmpegArgs.push('-c', 'copy', '-disposition:v:0', 'attached_pic')
+          }
+        } else {
+          ffmpegArgs.push('-c', 'copy')
+        }
+
+        ffmpegArgs.push(
           '-metadata',
+          `title=${track.title}`,
+          '-metadata:s:a:0',
+          `title=${track.title}`,
+          '-metadata:s:0',
           `title=${track.title}`,
           '-metadata',
           `track=${i + 1}/${totalTracks}`,
-          trackOutPath
-        ]
+          '-metadata:s:a:0',
+          `track=${i + 1}/${totalTracks}`,
+          '-metadata:s:0',
+          `track=${i + 1}/${totalTracks}`
+        )
+
+        if (albumTitle) {
+          ffmpegArgs.push(
+            '-metadata',
+            `album=${albumTitle}`,
+            '-metadata:s:a:0',
+            `album=${albumTitle}`
+          )
+        }
+
+        if (artistName) {
+          ffmpegArgs.push(
+            '-metadata',
+            `artist=${artistName}`,
+            '-metadata:s:a:0',
+            `artist=${artistName}`
+          )
+        }
+
+        if (vorbisPictureBase64) {
+          ffmpegArgs.push(
+            '-metadata',
+            `METADATA_BLOCK_PICTURE=${vorbisPictureBase64}`,
+            '-metadata:s:a:0',
+            `METADATA_BLOCK_PICTURE=${vorbisPictureBase64}`
+          )
+        }
+
+        ffmpegArgs.push(trackOutPath)
 
         await new Promise<void>((resolve) => {
           const ff = spawn(ffmpeg, ffmpegArgs)

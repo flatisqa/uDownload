@@ -19,7 +19,8 @@ import type {
   AppConfig,
   DownloadJob,
   PlaylistProgress,
-  SilenceDetectOptions
+  SilenceDetectOptions,
+  VideoMetadata
 } from '@shared/types/download'
 import { DEFAULT_CONFIG } from '@shared/types/download'
 
@@ -57,13 +58,20 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // ─── Download ──────────────────────────────────────────────────────────────
   ipcMain.handle(
     'download:start',
-    async (_e, url: string, options: DownloadOptions, playlistProgress?: PlaylistProgress) => {
+    async (
+      _e,
+      url: string,
+      options: DownloadOptions,
+      playlistProgress?: PlaylistProgress,
+      metadata?: VideoMetadata
+    ) => {
       try {
         const jobId = uuidv4()
         const job: DownloadJob = {
           id: jobId,
           url,
           options,
+          metadata,
           status: 'pending' as const,
           progress: 0,
           createdAt: Date.now(),

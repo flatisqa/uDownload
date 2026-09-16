@@ -21,7 +21,8 @@ interface Window {
     startDownload: (
       url: string,
       options: import('@shared/types/download').DownloadOptions,
-      playlistProgress?: import('@shared/types/download').PlaylistProgress
+      playlistProgress?: import('@shared/types/download').PlaylistProgress,
+      metadata?: import('@shared/types/download').VideoMetadata
     ) => Promise<{ success: boolean; data?: string; error?: string }>
     cancelDownload: (jobId: string) => Promise<{ success: boolean; error?: string }>
     resumeDownload: (jobId: string) => Promise<{ success: boolean; error?: string }>

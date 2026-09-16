@@ -113,7 +113,12 @@ function JobCard({ job }: { job: DownloadJob }): ReactElement {
       progress: 0,
       playlistProgress: resetPlaylistProgress
     })
-    const res = await window.api.startDownload(job.url, job.options, resetPlaylistProgress)
+    const res = await window.api.startDownload(
+      job.url,
+      job.options,
+      resetPlaylistProgress,
+      job.metadata
+    )
     if (!res.success) {
       updateJob(job.id, { status: 'error', error: res.error || 'Failed to restart download' })
     } else if (res.data && res.data !== job.id) {

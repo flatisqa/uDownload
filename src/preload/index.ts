@@ -25,8 +25,9 @@ const api = {
   startDownload: (
     url: string,
     options: DownloadOptions,
-    playlistProgress?: import('@shared/types/download').PlaylistProgress
-  ) => ipcRenderer.invoke('download:start', url, options, playlistProgress),
+    playlistProgress?: import('@shared/types/download').PlaylistProgress,
+    metadata?: import('@shared/types/download').VideoMetadata
+  ) => ipcRenderer.invoke('download:start', url, options, playlistProgress, metadata),
 
   cancelDownload: (jobId: string) => ipcRenderer.invoke('download:cancel', jobId),
 

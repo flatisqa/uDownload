@@ -52,7 +52,27 @@ export interface DownloaderSlice {
   toggleDetectedTrack: (id: string) => void
   toggleAllDetectedTracks: (selected: boolean) => void
   updateDetectedTrackTitle: (id: string, title: string) => void
+  mergeDetectedTrackWithPrevious: (id: string) => void
+  mergeDetectedTrackWithNext: (id: string) => void
+  deleteDetectedTrack: (id: string) => void
   resetDownloader: () => void
+}
+
+function renumberTracks(tracks: DetectedTrack[]): DetectedTrack[] {
+  return tracks.map((t, idx) => {
+    const num = String(idx + 1).padStart(2, '0')
+    let title = t.title
+    if (/^Трек\s+\d+$/i.test(title)) {
+      title = `Трек ${num}`
+    } else if (/^\d+[\s\-–—.:)]+/.test(title)) {
+      title = title.replace(/^\d+[\s\-–—.:)]+/, `${num}. `)
+    }
+    return {
+      ...t,
+      id: `track-${idx + 1}`,
+      title
+    }
+  })
 }
 
 export const createDownloaderSlice: StateCreator<DownloaderSlice> = (set) => ({
@@ -106,6 +126,36 @@ export const createDownloaderSlice: StateCreator<DownloaderSlice> = (set) => ({
   updateDetectedTrackTitle: (id, title) =>
     set((state) => ({
       detectedTracks: state.detectedTracks.map((t) => (t.id === id ? { ...t, title } : t))
+    })),
+  mergeDetectedTrackWithPrevious: (id) =>
+    set((state) => {
+      const idx = state.detectedTracks.findIndex((t) => t.id === id)
+      if (idx <= 0) return state
+      const tracks = [...state.detectedTracks]
+      const prev = { ...tracks[idx - 1] }
+      const curr = tracks[idx]
+      prev.endTime = curr.endTime
+      prev.duration = Math.max(1, Math.round(prev.endTime - prev.startTime))
+      tracks[idx - 1] = prev
+      tracks.splice(idx, 1)
+      return { detectedTracks: renumberTracks(tracks) }
+    }),
+  mergeDetectedTrackWithNext: (id) =>
+    set((state) => {
+      const idx = state.detectedTracks.findIndex((t) => t.id === id)
+      if (idx < 0 || idx >= state.detectedTracks.length - 1) return state
+      const tracks = [...state.detectedTracks]
+      const curr = tracks[idx]
+      const next = { ...tracks[idx + 1] }
+      next.startTime = curr.startTime
+      next.duration = Math.max(1, Math.round(next.endTime - next.startTime))
+      tracks[idx + 1] = next
+      tracks.splice(idx, 1)
+      return { detectedTracks: renumberTracks(tracks) }
+    }),
+  deleteDetectedTrack: (id) =>
+    set((state) => ({
+      detectedTracks: renumberTracks(state.detectedTracks.filter((t) => t.id !== id))
     })),
 
   resetDownloader: () =>

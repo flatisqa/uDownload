@@ -15,6 +15,9 @@ export const TrackSplitPanel: React.FC<TrackSplitPanelProps> = ({ onDownloadTrac
   const toggleDetectedTrack = useStore((s) => s.toggleDetectedTrack)
   const toggleAllDetectedTracks = useStore((s) => s.toggleAllDetectedTracks)
   const updateDetectedTrackTitle = useStore((s) => s.updateDetectedTrackTitle)
+  const mergeDetectedTrackWithPrevious = useStore((s) => s.mergeDetectedTrackWithPrevious)
+  const mergeDetectedTrackWithNext = useStore((s) => s.mergeDetectedTrackWithNext)
+  const deleteDetectedTrack = useStore((s) => s.deleteDetectedTrack)
 
   const t = useTranslation(settings.language)
 
@@ -28,6 +31,7 @@ export const TrackSplitPanel: React.FC<TrackSplitPanelProps> = ({ onDownloadTrac
   // Sensitivity settings
   const [noiseLevel, setNoiseLevel] = useState(-32)
   const [minSilenceDuration, setMinSilenceDuration] = useState(1.5)
+  const [minTrackDuration, setMinTrackDuration] = useState(60)
 
   useEffect(() => {
     const unsub = window.api.onDetectProgress((prog) => {
@@ -67,7 +71,7 @@ export const TrackSplitPanel: React.FC<TrackSplitPanelProps> = ({ onDownloadTrac
         {
           noiseLevel,
           minSilenceDuration,
-          minTrackDuration: 30
+          minTrackDuration
         }
       )
 
@@ -181,6 +185,23 @@ export const TrackSplitPanel: React.FC<TrackSplitPanelProps> = ({ onDownloadTrac
               <option value={1.5}>1.5 сек</option>
               <option value={2.0}>2.0 сек</option>
               <option value={3.0}>3.0 сек</option>
+            </select>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <label style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
+              {t('minTrackDurationLabel')}
+            </label>
+            <select
+              className="input"
+              style={{ width: 100, padding: '4px 8px', fontSize: 12 }}
+              value={minTrackDuration}
+              onChange={(e) => setMinTrackDuration(Number(e.target.value))}
+            >
+              <option value={30}>30 сек</option>
+              <option value={45}>45 сек</option>
+              <option value={60}>60 сек (стандарт)</option>
+              <option value={90}>90 сек</option>
+              <option value={120}>2 мин</option>
             </select>
           </div>
         </div>
@@ -484,6 +505,59 @@ export const TrackSplitPanel: React.FC<TrackSplitPanelProps> = ({ onDownloadTrac
                   >
                     {formatDuration(track.duration)}
                   </span>
+
+                  {/* Action buttons: Merge with previous, Merge with next, Delete */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 3, flexShrink: 0 }}>
+                    {idx > 0 && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={() => mergeDetectedTrackWithPrevious(track.id)}
+                        style={{
+                          padding: '2px 6px',
+                          fontSize: 10,
+                          height: 24,
+                          lineHeight: '20px',
+                          color: 'var(--text-secondary)'
+                        }}
+                        title={t('mergeWithPrev')}
+                      >
+                        ▲
+                      </button>
+                    )}
+                    {idx < detectedTracks.length - 1 && (
+                      <button
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={() => mergeDetectedTrackWithNext(track.id)}
+                        style={{
+                          padding: '2px 6px',
+                          fontSize: 10,
+                          height: 24,
+                          lineHeight: '20px',
+                          color: 'var(--text-secondary)'
+                        }}
+                        title={t('mergeWithNext')}
+                      >
+                        ▼
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      className="btn btn-ghost"
+                      onClick={() => deleteDetectedTrack(track.id)}
+                      style={{
+                        padding: '2px 6px',
+                        fontSize: 11,
+                        height: 24,
+                        lineHeight: '20px',
+                        color: 'var(--text-muted)'
+                      }}
+                      title={t('deleteTrackBtn')}
+                    >
+                      ✕
+                    </button>
+                  </div>
                 </div>
               )
             })}

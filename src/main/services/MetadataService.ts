@@ -399,7 +399,9 @@ export function buildYtdlpArgs(options: {
   // We use simpler logic now since DownloaderPage handles folder creation.
   // (Variables selectedChaptersCount and isSingleChapter are already defined above)
 
-  if (isPlaylistDownload) {
+  if (options.outputTemplate) {
+    args.push('-o', options.outputTemplate)
+  } else if (isPlaylistDownload) {
     const outputTemplate = path.join(outputPath, '%(playlist_index&{:02d}. |)s%(title)s.%(ext)s')
     args.push('-o', outputTemplate)
   } else if (isSingleChapter && options.format === 'audio') {

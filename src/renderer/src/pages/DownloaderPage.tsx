@@ -240,7 +240,11 @@ export default function DownloaderPage({
           expectedDuration: chapterDuration
         }
 
-        const res = await window.api.startDownload(meta.url, chapterOptions)
+        const res = await window.api.startDownload(meta.url, chapterOptions, undefined, {
+          ...meta,
+          title: displayTitle,
+          thumbnail: customThumbnail || meta.thumbnail
+        })
         if (res.success && res.data) {
           addJob({
             id: res.data,
@@ -300,7 +304,12 @@ export default function DownloaderPage({
       const res = await window.api.startDownload(
         meta.url,
         multiTrackOptions,
-        initialPlaylistProgress
+        initialPlaylistProgress,
+        {
+          ...meta,
+          title: customTitle || meta.title,
+          thumbnail: customThumbnail || meta.thumbnail
+        }
       )
       if (res.success && res.data) {
         addJob({
@@ -359,7 +368,11 @@ export default function DownloaderPage({
         : undefined
 
     setStep('downloading')
-    const res = await window.api.startDownload(meta.url, options, initialPlaylistProgress)
+    const res = await window.api.startDownload(meta.url, options, initialPlaylistProgress, {
+      ...meta,
+      title: customTitle || meta.title,
+      thumbnail: customThumbnail || meta.thumbnail
+    })
     if (res.success && res.data) {
       addJob({
         id: res.data,
