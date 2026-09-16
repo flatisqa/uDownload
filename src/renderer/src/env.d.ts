@@ -29,7 +29,7 @@ interface Window {
     checkAndUpdateBinaries: () => Promise<{ success: boolean; data?: string; error?: string }>
     getBinaryStatus: () => Promise<{
       success: boolean
-      data?: { ytdlp: boolean; ytdlpVersion?: string; ffmpeg: boolean; ffmpegVersion?: string }
+      data?: import('@shared/types/download').BinaryStatus
       error?: string
     }>
     getSettings: () => Promise<{
@@ -90,6 +90,9 @@ interface Window {
     cancelDetectTracks: () => Promise<{ success: boolean }>
     onDetectProgress: (
       callback: (progress: import('@shared/types/download').TrackDetectProgress) => void
+    ) => () => void
+    onBinaryProgress: (
+      callback: (progress: import('@shared/types/download').BinaryUpdateProgress) => void
     ) => () => void
   }
 }

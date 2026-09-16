@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, dev]
     tags:
-      - 'v*'  # При создании тега v1.0.0, v2.0.0 и т.д.
+      - 'v*' # При создании тега v1.0.0, v2.0.0 и т.д.
   pull_request:
     branches: [main]
   workflow_dispatch:

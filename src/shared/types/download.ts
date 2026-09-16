@@ -204,12 +204,35 @@ export interface AppConfig {
     | 'sakura-rain'
     | 'forest-terminal'
     | 'system'
+  // Binaries
+  ffmpegSource: 'standalone' | 'system'
+  installedFfmpegVersion?: string
   // Presets
   presets: Preset[]
   // Last used
   lastFormat: MediaFormat
   lastAudioQuality: AudioQuality
   lastVideoQuality: VideoQuality
+}
+
+export interface BinaryStatus {
+  ytdlp: boolean
+  ytdlpVersion?: string
+  ffmpeg: boolean
+  ffmpegVersion?: string
+  ffmpegSource?: 'standalone' | 'system'
+  standaloneFfmpegVersion?: string
+  systemFfmpegVersion?: string
+  latestFfmpegAvailable?: string
+}
+
+export interface BinaryUpdateProgress {
+  component: 'ytdlp' | 'ffmpeg'
+  status: 'checking' | 'downloading' | 'extracting' | 'done' | 'error'
+  percent?: number
+  currentBytes?: number
+  totalBytes?: number
+  message?: string
 }
 
 export const DEFAULT_PRESETS: Preset[] = [
@@ -252,6 +275,8 @@ export const DEFAULT_CONFIG: AppConfig = {
   customArgs: '',
   language: 'en',
   theme: 'system',
+  ffmpegSource: 'standalone',
+  installedFfmpegVersion: '',
   presets: DEFAULT_PRESETS,
   lastFormat: 'audio+video',
   lastAudioQuality: 'best',

@@ -22,7 +22,10 @@ export interface IElectronAPI {
   cancelDownload: (jobId: string) => Promise<{ success: boolean }>
   resumeDownload: (jobId: string) => Promise<{ success: boolean }>
   checkAndUpdateBinaries: () => Promise<{ success: boolean; data?: string; error?: string }>
-  getBinaryStatus: () => Promise<{ success: boolean; data?: { ytdlp: boolean; ffmpeg: boolean } }>
+  getBinaryStatus: () => Promise<{
+    success: boolean
+    data?: import('@shared/types/download').BinaryStatus
+  }>
   getSettings: () => Promise<{ success: boolean; data?: AppConfig }>
   setSettings: (settings: Partial<AppConfig>) => Promise<{ success: boolean }>
   toggleClipboard: (enabled: boolean) => Promise<{ success: boolean }>
@@ -70,6 +73,9 @@ export interface IElectronAPI {
   onClipboardLink: (callback: (url: string) => void) => () => void
   onDetectProgress: (
     callback: (progress: import('@shared/types/download').TrackDetectProgress) => void
+  ) => () => void
+  onBinaryProgress: (
+    callback: (progress: import('@shared/types/download').BinaryUpdateProgress) => void
   ) => () => void
 }
 

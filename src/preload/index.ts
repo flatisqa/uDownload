@@ -88,6 +88,17 @@ const api = {
     return () => ipcRenderer.removeListener('audio:detectProgress', handler)
   },
 
+  onBinaryProgress: (
+    callback: (progress: import('@shared/types/download').BinaryUpdateProgress) => void
+  ): (() => void) => {
+    const handler = (
+      _: Electron.IpcRendererEvent,
+      data: import('@shared/types/download').BinaryUpdateProgress
+    ): void => callback(data)
+    ipcRenderer.on('binary:updateProgress', handler)
+    return () => ipcRenderer.removeListener('binary:updateProgress', handler)
+  },
+
   // Window Management
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),

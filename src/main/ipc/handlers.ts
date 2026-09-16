@@ -115,7 +115,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.handle('binary:checkAndUpdate', async () => {
     try {
-      const msg = await BinaryManager.checkAndUpdate()
+      const msg = await BinaryManager.checkAndUpdate((progress) => {
+        if (!mainWindow.isDestroyed()) {
+          mainWindow.webContents.send('binary:updateProgress', progress)
+        }
+      })
       return { success: true, data: msg }
     } catch (error) {
       return { success: false, error: String(error) }

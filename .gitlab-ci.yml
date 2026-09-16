@@ -19,8 +19,8 @@ stages:
 # Доступны во всех jobs
 # ----------------------------------------------------------------------------
 variables:
-  npm_config_cache: "$CI_PROJECT_DIR/.npm"
-  NODE_VERSION: "20"
+  npm_config_cache: '$CI_PROJECT_DIR/.npm'
+  NODE_VERSION: '20'
 
 # ----------------------------------------------------------------------------
 # ШАБЛОН КЭШИРОВАНИЯ (Cache Template)

@@ -1,6 +1,13 @@
 import { useEffect, useState, type ReactElement } from 'react'
 import { useStore } from '../store'
-import type { MediaFormat, AudioQuality, VideoQuality, AppConfig } from '@shared/types/download'
+import type {
+  MediaFormat,
+  AudioQuality,
+  VideoQuality,
+  AppConfig,
+  BinaryStatus,
+  BinaryUpdateProgress
+} from '@shared/types/download'
 import { useTranslation } from '../i18n'
 
 function Toggle({
@@ -23,16 +30,12 @@ export default function SettingsPage(): ReactElement {
   const updateSettings = useStore((s) => s.updateSettings)
   const t = useTranslation(settings.language)
 
-  const [binaryStatus, setBinaryStatus] = useState<{
-    ytdlp: boolean
-    ytdlpVersion?: string
-    ffmpeg: boolean
-    ffmpegVersion?: string
-  } | null>(null)
+  const [binaryStatus, setBinaryStatus] = useState<BinaryStatus | null>(null)
   const [showArgsTooltip, setShowArgsTooltip] = useState(false)
   const [argsTooltipPinned, setArgsTooltipPinned] = useState(false)
   const [updateMsg, setUpdateMsg] = useState('')
   const [isUpdating, setIsUpdating] = useState(false)
+  const [updateProgress, setUpdateProgress] = useState<BinaryUpdateProgress | null>(null)
   const [customSubLang, setCustomSubLang] = useState(false)
 
   const [showPresetForm, setShowPresetForm] = useState(false)
@@ -49,18 +52,33 @@ export default function SettingsPage(): ReactElement {
     window.api.getBinaryStatus().then((res) => {
       if (res.success && res.data) setBinaryStatus(res.data)
     })
+
+    const unsub = window.api.onBinaryProgress?.((prog) => {
+      setUpdateProgress(prog)
+      if (prog.message) {
+        setUpdateMsg(prog.message)
+      }
+    })
+
+    return () => unsub?.()
   }, [])
 
   const handleUpdate = async (): Promise<void> => {
     setIsUpdating(true)
     setUpdateMsg('')
-    const res = await window.api.checkAndUpdateBinaries()
-    setUpdateMsg(res.data || res.error || 'Done')
-    setIsUpdating(false)
-    // Refresh status
-    window.api.getBinaryStatus().then((r) => {
-      if (r.success && r.data) setBinaryStatus(r.data)
-    })
+    setUpdateProgress(null)
+    try {
+      const res = await window.api.checkAndUpdateBinaries()
+      setUpdateMsg(res.data || res.error || 'Done')
+    } catch (err) {
+      setUpdateMsg(String(err))
+    } finally {
+      setIsUpdating(false)
+      setUpdateProgress(null)
+      window.api.getBinaryStatus().then((r) => {
+        if (r.success && r.data) setBinaryStatus(r.data)
+      })
+    }
   }
 
   return (
@@ -975,10 +993,10 @@ export default function SettingsPage(): ReactElement {
           />
         </div>
         {binaryStatus && (
-          <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div style={{ marginBottom: 20, display: 'flex', flexDirection: 'column', gap: 14 }}>
             <div className="flex items-center gap-8">
               <span className={`badge ${binaryStatus.ytdlp ? 'badge-done' : 'badge-error'}`}>
-                yt-dlp {binaryStatus.ytdlp ? '✓' : '✗'}
+                YT-DLP {binaryStatus.ytdlp ? '✓' : '✗'}
               </span>
               {binaryStatus.ytdlpVersion && (
                 <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
@@ -986,23 +1004,156 @@ export default function SettingsPage(): ReactElement {
                 </span>
               )}
             </div>
+
             <div className="flex items-center gap-8">
               <span className={`badge ${binaryStatus.ffmpeg ? 'badge-done' : 'badge-error'}`}>
-                ffmpeg {binaryStatus.ffmpeg ? '✓' : '✗'}
+                FFMPEG {binaryStatus.ffmpeg ? '✓' : '✗'}
               </span>
-              {binaryStatus.ffmpegVersion && (
-                <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
-                  {binaryStatus.ffmpegVersion}
-                </span>
+              <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>
+                {binaryStatus.ffmpegVersion ||
+                  (settings.language === 'ru' ? 'не найден' : 'not found')}
+              </span>
+            </div>
+
+            {/* FFmpeg Source Selection */}
+            <div
+              style={{
+                marginTop: 4,
+                padding: '12px 14px',
+                borderRadius: 'var(--radius-md)',
+                backgroundColor: 'rgba(0, 0, 0, 0.25)',
+                border: '1px solid rgba(255, 255, 255, 0.05)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10
+              }}
+            >
+              <label
+                style={{
+                  fontSize: 11,
+                  fontWeight: 600,
+                  letterSpacing: '0.05em',
+                  color: 'var(--text-secondary)'
+                }}
+              >
+                {settings.language === 'ru'
+                  ? 'ВЕРСИЯ FFMPEG ДЛЯ ИСПОЛЬЗОВАНИЯ'
+                  : 'FFMPEG VERSION TO USE'}
+              </label>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {/* Standalone option */}
+                <label className="flex items-center gap-10 cursor-pointer" style={{ fontSize: 13 }}>
+                  <input
+                    type="radio"
+                    name="ffmpegSource"
+                    checked={(settings.ffmpegSource || 'standalone') === 'standalone'}
+                    onChange={async () => {
+                      await updateSettings({ ffmpegSource: 'standalone' })
+                      window.api
+                        .getBinaryStatus()
+                        .then((r) => r.success && r.data && setBinaryStatus(r.data))
+                    }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        fontWeight:
+                          (settings.ffmpegSource || 'standalone') === 'standalone' ? 600 : 400
+                      }}
+                    >
+                      ⚡{' '}
+                      {settings.language === 'ru'
+                        ? 'Автономная сборка (uDownload)'
+                        : 'Standalone build'}
+                    </span>
+                    <span
+                      className="badge badge-pending"
+                      style={{ fontSize: 11, textTransform: 'none' }}
+                    >
+                      {binaryStatus.standaloneFfmpegVersion
+                        ? binaryStatus.standaloneFfmpegVersion
+                        : settings.language === 'ru'
+                          ? 'не скачана'
+                          : 'not downloaded'}
+                    </span>
+                  </div>
+                </label>
+
+                {/* System option */}
+                <label className="flex items-center gap-10 cursor-pointer" style={{ fontSize: 13 }}>
+                  <input
+                    type="radio"
+                    name="ffmpegSource"
+                    checked={settings.ffmpegSource === 'system'}
+                    onChange={async () => {
+                      await updateSettings({ ffmpegSource: 'system' })
+                      window.api
+                        .getBinaryStatus()
+                        .then((r) => r.success && r.data && setBinaryStatus(r.data))
+                    }}
+                  />
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                    <span style={{ fontWeight: settings.ffmpegSource === 'system' ? 600 : 400 }}>
+                      🖥️ {settings.language === 'ru' ? 'Системная версия' : 'System version'}
+                    </span>
+                    <span
+                      className="badge badge-pending"
+                      style={{ fontSize: 11, textTransform: 'none' }}
+                    >
+                      {binaryStatus.systemFfmpegVersion
+                        ? binaryStatus.systemFfmpegVersion
+                        : settings.language === 'ru'
+                          ? 'не найдена в системе'
+                          : 'not found in system'}
+                    </span>
+                  </div>
+                </label>
+              </div>
+
+              {settings.ffmpegSource === 'system' && (
+                <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0, lineHeight: 1.5 }}>
+                  {settings.language === 'ru'
+                    ? '💡 При проверке обновлений для системной версии файлы не скачиваются зря.'
+                    : '💡 When using system FFmpeg, updates are only checked without downloading.'}
+                </p>
               )}
             </div>
           </div>
         )}
-        <div className="flex items-center gap-12">
+
+        {/* Live Progress Bar when updating */}
+        {isUpdating && updateProgress && (
+          <div style={{ marginBottom: 16, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12 }}>
+              <span style={{ color: 'var(--accent)' }}>
+                {updateProgress.message ||
+                  (settings.language === 'ru' ? 'Обновление...' : 'Updating...')}
+              </span>
+              {typeof updateProgress.percent === 'number' && (
+                <span style={{ fontVariantNumeric: 'tabular-nums', fontWeight: 600 }}>
+                  {updateProgress.percent}%
+                </span>
+              )}
+            </div>
+            {typeof updateProgress.percent === 'number' && (
+              <div className="progress-wrap" style={{ height: 6 }}>
+                <div
+                  className="progress-bar"
+                  style={{ width: `${updateProgress.percent}%`, transition: 'width 0.2s ease' }}
+                />
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex items-center gap-12" style={{ flexWrap: 'wrap' }}>
           <button className="btn btn-ghost" onClick={handleUpdate} disabled={isUpdating}>
-            {isUpdating ? t('updating') : t('checkForUpdates')}
+            {isUpdating
+              ? `⏳ ${settings.language === 'ru' ? 'Обновление...' : 'Updating...'}`
+              : `↻ ${t('checkForUpdates')}`}
           </button>
-          {updateMsg && (
+          {updateMsg && !isUpdating && (
             <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{updateMsg}</span>
           )}
         </div>
