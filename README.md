@@ -120,7 +120,7 @@
 
 | Платформа | Формат | Описание |
 | :--- | :--- | :--- |
-| 🪟 **Windows** | `.exe` (setup) | Установщик для Windows 10/11 (64-bit) |
+| 🪟 **Windows** | `.exe` (setup / portable) | Установщик или переносная версия без установки (64-bit) |
 | 🍏 **macOS** | `.dmg` / `.zip` | **Universal** (для Apple Silicon M1-M4 и Intel) |
 | 🐧 **Linux** | `.AppImage` / `.deb` | Для Ubuntu, Debian, Fedora, Arch и др. |
 
