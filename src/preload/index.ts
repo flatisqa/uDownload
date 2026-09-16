@@ -100,7 +100,8 @@ const api = {
       isDirectory: boolean
       path: string
       name: string
-    }>
+    }>,
+  getAppVersion: () => ipcRenderer.invoke('app:getVersion') as Promise<string>
 }
 
 if (process.contextIsolated) {

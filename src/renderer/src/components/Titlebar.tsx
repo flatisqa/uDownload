@@ -1,5 +1,5 @@
 import './Titlebar.css'
-import type { ReactElement } from 'react'
+import { useState, useEffect, type ReactElement } from 'react'
 import { useTranslation } from '../i18n'
 import { useStore } from '../store'
 
@@ -13,6 +13,15 @@ interface TitlebarProps {
 export default function Titlebar({ page, setPage }: TitlebarProps): ReactElement {
   const settings = useStore((s) => s.settings)
   const t = useTranslation(settings.language)
+  const [version, setVersion] = useState<string>(
+    typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : '1.0.0'
+  )
+
+  useEffect(() => {
+    window.api.getAppVersion?.().then((v) => {
+      if (v) setVersion(v)
+    })
+  }, [])
 
   const handleMinimize = (): void => window.api.minimizeWindow()
   const handleMaximize = (): void => window.api.maximizeWindow()
@@ -25,6 +34,7 @@ export default function Titlebar({ page, setPage }: TitlebarProps): ReactElement
         <div className="titlebar-logo">
           <span style={{ color: 'var(--accent)', marginRight: 6 }}>⬇</span>
           uDowload
+          <span className="titlebar-version">v{version}</span>
         </div>
 
         <div className="titlebar-nav">

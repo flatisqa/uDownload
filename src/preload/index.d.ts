@@ -38,6 +38,7 @@ export interface IElectronAPI {
     isPlaylistOrAlbum: boolean,
     format: string
   ) => Promise<{ exists: boolean; isDirectory: boolean; path: string; name: string }>
+  getAppVersion: () => Promise<string>
   onDownloadProgress: (callback: (data: object) => void) => () => void
   onDownloadCompleted: (callback: (data: object) => void) => () => void
   onDownloadError: (callback: (data: object) => void) => () => void

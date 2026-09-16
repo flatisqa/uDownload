@@ -61,5 +61,8 @@ interface Window {
       isPlaylistOrAlbum: boolean,
       format: string
     ) => Promise<{ exists: boolean; isDirectory: boolean; path: string; name: string }>
+    getAppVersion: () => Promise<string>
   }
 }
+
+declare const __APP_VERSION__: string

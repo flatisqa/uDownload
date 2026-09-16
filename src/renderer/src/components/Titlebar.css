@@ -36,6 +36,20 @@
   color: var(--text-primary);
   display: flex;
   align-items: center;
+  gap: 8px;
+}
+
+.titlebar-version {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent-dim);
+  color: var(--accent);
+  letter-spacing: 0.02em;
+  font-family: var(--font-mono, monospace);
+  line-height: 1.4;
+  border: 1px solid rgba(110, 231, 183, 0.2);
 }
 
 .titlebar-controls {
@@ -145,4 +159,10 @@
 [data-theme='light'] .titlebar-nav-item.active::after {
   background-color: #0d9488;
   box-shadow: 0 -2px 8px rgba(13, 148, 136, 0.3);
+}
+
+[data-theme='light'] .titlebar-version {
+  background: rgba(13, 148, 136, 0.12);
+  color: #0d9488;
+  border-color: rgba(13, 148, 136, 0.25);
 }

@@ -1,4 +1,4 @@
-import { ipcMain, dialog, BrowserWindow, shell } from 'electron'
+import { ipcMain, dialog, BrowserWindow, shell, app } from 'electron'
 import { v4 as uuidv4 } from 'uuid'
 import Store from 'electron-store'
 import fs from 'fs'
@@ -311,6 +311,11 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   ipcMain.on('window:close', () => {
     mainWindow.close()
+  })
+
+  // ─── App Info ──────────────────────────────────────────────────────────────
+  ipcMain.handle('app:getVersion', () => {
+    return app.getVersion()
   })
 
   // ─── Forward queue events to renderer ─────────────────────────────────────
