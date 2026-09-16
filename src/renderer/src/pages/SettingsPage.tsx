@@ -373,16 +373,30 @@ export default function SettingsPage(): ReactElement {
         {/* Cookies */}
         <div style={{ marginTop: 16 }}>
           <label
-            style={{ color: 'var(--text-secondary)', fontSize: 11, display: 'block', marginBottom: 4 }}
+            style={{
+              color: 'var(--text-secondary)',
+              fontSize: 11,
+              display: 'block',
+              marginBottom: 4
+            }}
           >
             {t('useCookies')}
           </label>
-          <p style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 12, lineHeight: 1.5 }}>
+          <p
+            style={{ color: 'var(--text-muted)', fontSize: 12, marginBottom: 12, lineHeight: 1.5 }}
+          >
             {t('cookiesDesc')}
           </p>
 
           {/* From browser */}
-          <label style={{ color: 'var(--text-secondary)', fontSize: 11, display: 'block', marginBottom: 6 }}>
+          <label
+            style={{
+              color: 'var(--text-secondary)',
+              fontSize: 11,
+              display: 'block',
+              marginBottom: 6
+            }}
+          >
             {t('useCookiesBrowserLabel')}
           </label>
           <select
@@ -399,12 +413,27 @@ export default function SettingsPage(): ReactElement {
             <option value="vivaldi">Vivaldi</option>
             <option value="safari">Safari</option>
           </select>
-          <p style={{ color: 'var(--text-muted)', fontSize: 12, marginTop: 4, marginBottom: 14, lineHeight: 1.5 }}>
+          <p
+            style={{
+              color: 'var(--text-muted)',
+              fontSize: 12,
+              marginTop: 4,
+              marginBottom: 14,
+              lineHeight: 1.5
+            }}
+          >
             {t('useCookiesWarn')}
           </p>
 
           {/* From file */}
-          <label style={{ color: 'var(--text-secondary)', fontSize: 11, display: 'block', marginBottom: 8 }}>
+          <label
+            style={{
+              color: 'var(--text-secondary)',
+              fontSize: 11,
+              display: 'block',
+              marginBottom: 8
+            }}
+          >
             {t('cookiesFileLabel')}
           </label>
           <div
@@ -652,15 +681,15 @@ export default function SettingsPage(): ReactElement {
                       presets: settings.presets.map((p) =>
                         p.id === editingPresetId
                           ? {
-                            ...p,
-                            name: presetForm.name,
-                            emoji: presetForm.emoji || '⚡',
-                            options: {
-                              format: presetForm.format,
-                              audioQuality: presetForm.audioQuality,
-                              videoQuality: presetForm.videoQuality
+                              ...p,
+                              name: presetForm.name,
+                              emoji: presetForm.emoji || '⚡',
+                              options: {
+                                format: presetForm.format,
+                                audioQuality: presetForm.audioQuality,
+                                videoQuality: presetForm.videoQuality
+                              }
                             }
-                          }
                           : p
                       )
                     })
@@ -695,7 +724,7 @@ export default function SettingsPage(): ReactElement {
           </div>
         )}
 
-        <div className="flex flex-col gap-16">
+        <div className="flex flex-col gap-8">
           {settings.presets.length === 0 ? (
             <p style={{ color: 'var(--text-muted)', fontSize: 14, fontStyle: 'italic' }}>
               {t('noPresets')}

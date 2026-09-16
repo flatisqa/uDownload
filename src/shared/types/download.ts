@@ -99,6 +99,24 @@ export interface DownloadOptions {
   expectedDuration?: number
 }
 
+export interface PlaylistItemProgress {
+  id: string
+  title: string
+  url?: string
+  duration?: number
+  thumbnail?: string
+  status: DownloadStatus
+  progress: number
+  speed?: string
+  size?: string
+}
+
+export interface PlaylistProgress {
+  current: number
+  total: number
+  items: PlaylistItemProgress[]
+}
+
 export interface DownloadJob {
   id: string
   url: string
@@ -113,6 +131,7 @@ export interface DownloadJob {
   finalFilePath?: string
   error?: string
   createdAt: number
+  playlistProgress?: PlaylistProgress
 }
 
 export interface Preset {

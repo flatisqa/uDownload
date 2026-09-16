@@ -14,9 +14,16 @@ export const createSettingsSlice: StateCreator<SettingsSlice> = (set, get) => ({
   isLoaded: false,
 
   loadSettings: async () => {
-    const res = await window.api.getSettings()
-    if (res.success && res.data) {
-      set({ settings: res.data, isLoaded: true })
+    try {
+      const res = await window.api.getSettings()
+      if (res.success && res.data) {
+        set({ settings: res.data, isLoaded: true })
+      } else {
+        // Fallback to defaults so the app isn't stuck in loading state
+        set({ isLoaded: true })
+      }
+    } catch {
+      set({ isLoaded: true })
     }
   },
 

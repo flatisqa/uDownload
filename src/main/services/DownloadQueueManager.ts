@@ -6,7 +6,13 @@ import { EventEmitter } from 'events'
 import { getYtdlpBin, getFfmpegBin } from './BinaryManager'
 import { buildYtdlpArgs } from './MetadataService'
 import Store from 'electron-store'
-import type { DownloadJob, DownloadOptions, AppConfig } from '@shared/types/download'
+import type {
+  DownloadJob,
+  DownloadOptions,
+  AppConfig,
+  PlaylistProgress
+} from '@shared/types/download'
+import { DEFAULT_CONFIG } from '@shared/types/download'
 
 // [download]  45.3% of 128.30MiB at 5.20MiB/s ETA 00:12
 // [download]   1.4% of ~123.4MiB at Unknown speed ETA Unknown ETA
@@ -14,11 +20,13 @@ const PROGRESS_RE = /\[download\]\s+([\d.]+)%\s+of\s+[~]?([\d.]+\S+)\s+at\s+(.*?
 
 type ProcessEntry = {
   process: ChildProcess
+  job: DownloadJob
   options: DownloadOptions
   destinations: string[]
   speedHistory: number[]
   progress?: number
   phase: 'downloading' | 'converting'
+  playlistProgress?: PlaylistProgress
 }
 
 export class DownloadQueueManager extends EventEmitter {
@@ -29,7 +37,7 @@ export class DownloadQueueManager extends EventEmitter {
 
   constructor(concurrency = 2) {
     super()
-    this.store = new Store<AppConfig>()
+    this.store = new Store<AppConfig>({ defaults: DEFAULT_CONFIG })
     this.concurrency = concurrency
   }
 
@@ -57,7 +65,19 @@ export class DownloadQueueManager extends EventEmitter {
     if (entry) {
       entry.process.kill('SIGTERM')
       this.active.delete(jobId)
-      this.emit('progress', { id: jobId, status: 'cancelled', progress: 0 })
+      if (entry.playlistProgress) {
+        for (const item of entry.playlistProgress.items) {
+          if (item.status !== 'done') {
+            item.status = 'cancelled'
+          }
+        }
+      }
+      this.emit('progress', {
+        id: jobId,
+        status: 'cancelled',
+        progress: 0,
+        playlistProgress: entry.playlistProgress
+      })
 
       // Cleanup temporary files
       for (const dest of entry.destinations) {
@@ -76,7 +96,17 @@ export class DownloadQueueManager extends EventEmitter {
 
   resume(jobId: string): void {
     // Re-enqueue with same options (yt-dlp will continue from partial file)
+    const entry = this.active.get(jobId)
+    if (entry) {
+      // Job is still active — nothing to do
+      return
+    }
+    // Find job in queue (already pending)
+    const inQueue = this.queue.find((j) => j.id === jobId)
+    if (inQueue) return
+    // Nothing to do if we don't know the job details anymore
     this.emit('progress', { id: jobId, status: 'pending' })
+    // tick in case concurrency slot opened
     this.tick()
   }
 
@@ -89,15 +119,24 @@ export class DownloadQueueManager extends EventEmitter {
 
   private startJob(job: DownloadJob): void {
     const config = this.store.get('config') as Partial<AppConfig> | undefined
-    let outputPath = job.options.outputPath
+    let outputPath = job.options.outputPath?.trim() || ''
 
-    if (!outputPath) {
-      if (job.options.format === 'audio') {
-        outputPath = config?.outputDirectoryAudio || path.join(os.homedir(), 'Music')
-      } else {
-        outputPath = config?.outputDirectoryVideo || path.join(os.homedir(), 'Videos')
-      }
+    const defaultAudio = config?.outputDirectoryAudio?.trim() || path.join(os.homedir(), 'Music')
+    const defaultVideo = config?.outputDirectoryVideo?.trim() || path.join(os.homedir(), 'Videos')
+    const defaultBaseDir = job.options.format === 'audio' ? defaultAudio : defaultVideo
+
+    // Check if outputPath is empty, or mistakenly points to a single folder at root (e.g. "/Протокол души")
+    const isBareRootFolder = Boolean(
+      outputPath && /^\/[^/]+$/.test(outputPath) && !fs.existsSync(outputPath)
+    )
+
+    if (!outputPath || isBareRootFolder || !path.isAbsolute(outputPath)) {
+      const folderName = outputPath ? path.basename(outputPath) : ''
+      outputPath = folderName ? path.join(defaultBaseDir, folderName) : defaultBaseDir
     }
+
+    job.options.outputPath = outputPath
+    job.outputPath = outputPath
 
     const ytdlp = getYtdlpBin()
     const ffmpeg = getFfmpegBin()
@@ -117,8 +156,6 @@ export class DownloadQueueManager extends EventEmitter {
       return
     }
 
-    job.outputPath = outputPath
-
     const outputTemplate = path.join(outputPath, '%(title)s.%(ext)s')
 
     const args = buildYtdlpArgs({
@@ -137,6 +174,7 @@ export class DownloadQueueManager extends EventEmitter {
       cookiesManual: job.options.cookiesManual,
       cookiesFilePath: job.options.cookiesFilePath,
       selectedChapters: job.options.selectedChapters,
+      playlistAll: job.options.playlistAll,
       selectedPlaylistItems: job.options.selectedPlaylistItems,
       timeFrom: job.options.timeFrom,
       timeTo: job.options.timeTo,
@@ -158,176 +196,267 @@ export class DownloadQueueManager extends EventEmitter {
 
     const proc = spawn(ytdlp, args)
     const destinations: string[] = []
+    const initialPlaylistProgress: PlaylistProgress | undefined = job.playlistProgress
+      ? JSON.parse(JSON.stringify(job.playlistProgress))
+      : undefined
+
     this.active.set(job.id, {
       process: proc,
+      job,
       options: job.options,
       destinations,
       speedHistory: [],
       progress: 0,
-      phase: 'downloading'
+      phase: 'downloading',
+      playlistProgress: initialPlaylistProgress
     })
 
     const lastStderrLines: string[] = []
 
+    // Unified line parser used for both stdout and stderr
+    const parseLine = (trimmed: string, isStderr: boolean): void => {
+      // Track playlist item index:
+      // [download] Downloading item 1 of 10
+      // [download] Downloading video 1 of 10
+      // [download] Downloading playlist item 1 of 10
+      const playlistItemMatch =
+        /\[download\]\s+Downloading\s+(?:playlist\s+)?(?:item|video|track|audio)?\s*(\d+)\s+of\s+(\d+)/i.exec(
+          trimmed
+        )
+      if (playlistItemMatch) {
+        const currentItem = parseInt(playlistItemMatch[1], 10)
+        const totalItems = parseInt(playlistItemMatch[2], 10)
+        const entry = this.active.get(job.id)
+        if (entry) {
+          entry.phase = 'downloading'
+          // Auto-initialize playlistProgress if not provided initially
+          if (!entry.playlistProgress && totalItems > 1) {
+            entry.playlistProgress = {
+              current: currentItem,
+              total: totalItems,
+              items: Array.from({ length: totalItems }, (_, i) => ({
+                id: String(i + 1),
+                title: `Трек ${i + 1}`,
+                status:
+                  i < currentItem - 1 ? 'done' : i === currentItem - 1 ? 'downloading' : 'pending',
+                progress: i < currentItem - 1 ? 100 : 0
+              }))
+            }
+          }
+          if (entry.playlistProgress) {
+            entry.playlistProgress.current = currentItem
+            entry.playlistProgress.total = totalItems
+            // Mark all items before current as done
+            for (let i = 0; i < currentItem - 1; i++) {
+              if (entry.playlistProgress.items[i]) {
+                entry.playlistProgress.items[i].status = 'done'
+                entry.playlistProgress.items[i].progress = 100
+              }
+            }
+            // Mark current item as downloading
+            if (entry.playlistProgress.items[currentItem - 1]) {
+              entry.playlistProgress.items[currentItem - 1].status = 'downloading'
+            }
+            const overallProgress = Math.min(99.9, ((currentItem - 1) / totalItems) * 100)
+            this.emit('progress', {
+              id: job.id,
+              status: 'downloading',
+              progress: overallProgress,
+              playlistProgress: entry.playlistProgress
+            })
+          }
+        }
+        return
+      }
+
+      // Track item download completion: [download] 100% of 4.04MiB in 00:02
+      if (/\[download\]\s+100(?:\.0+)?%\s+of/i.test(trimmed)) {
+        const entry = this.active.get(job.id)
+        if (entry?.playlistProgress && entry.playlistProgress.total > 0) {
+          const currentItemIdx = Math.max(1, entry.playlistProgress.current || 1)
+          const itemIdx = currentItemIdx - 1
+          if (entry.playlistProgress.items[itemIdx]) {
+            entry.playlistProgress.items[itemIdx].progress = 100
+          }
+        }
+      }
+
+      // Track destination files
+      const destMatch = /\[download\] Destination: (.*)/.exec(trimmed)
+      if (destMatch) {
+        destinations.push(destMatch[1].trim())
+        return
+      }
+      const extractedAudioMatch = /\[ExtractAudio\] Destination: (.*)/.exec(trimmed)
+      if (extractedAudioMatch) {
+        destinations.push(extractedAudioMatch[1].trim())
+        return
+      }
+      const mergeMatch = /\[Merger\] Merging formats into "(.*)"/.exec(trimmed)
+      if (mergeMatch) {
+        destinations.push(mergeMatch[1].trim())
+        return
+      }
+
+      // Converting phase indicators
+      if (
+        trimmed.includes('[ExtractAudio]') ||
+        trimmed.includes('Merging') ||
+        trimmed.includes('[Metadata]') ||
+        trimmed.includes('[Thumbnails]') ||
+        trimmed.includes('[EmbedSubtitle]') ||
+        trimmed.includes('[Fixup]')
+      ) {
+        const entry = this.active.get(job.id)
+        if (entry) {
+          if (entry.playlistProgress && entry.playlistProgress.total > 0) {
+            const currentItemIdx = Math.max(1, entry.playlistProgress.current || 1)
+            const curIdx = currentItemIdx - 1
+            if (entry.playlistProgress.items[curIdx]) {
+              entry.playlistProgress.items[curIdx].status = 'converting'
+              entry.playlistProgress.items[curIdx].progress = 99.9
+            }
+            const overallProgress = Math.min(
+              99.9,
+              ((currentItemIdx - 1) * 100 + 99.9) / entry.playlistProgress.total
+            )
+            this.emit('progress', {
+              id: job.id,
+              status: 'downloading',
+              progress: overallProgress,
+              playlistProgress: entry.playlistProgress
+            })
+            return
+          } else {
+            entry.phase = 'converting'
+            this.emit('progress', { id: job.id, status: 'converting', progress: 99.9 })
+            return
+          }
+        }
+      }
+
+      // yt-dlp progress line: [download]  45.3% of 128.30MiB at 5.20MiB/s ETA 00:12
+      const match = PROGRESS_RE.exec(trimmed)
+      if (match) {
+        const progress = parseFloat(match[1])
+        const size = match[2].trim()
+        let speed = match[3].trim()
+        const eta = match[4].trim()
+
+        const entry = this.active.get(job.id)
+        if (entry) {
+          entry.phase = 'downloading'
+          const currentSpeedBytes = this.parseSpeed(speed)
+          if (currentSpeedBytes > 0) {
+            entry.speedHistory.push(currentSpeedBytes)
+            if (entry.speedHistory.length > 10) entry.speedHistory.shift()
+            const avgSpeedBytes =
+              entry.speedHistory.reduce((a, b) => a + b, 0) / entry.speedHistory.length
+            speed = `~${this.formatSpeed(avgSpeedBytes)}`
+          }
+
+          if (entry.playlistProgress && entry.playlistProgress.total > 0) {
+            const currentItemIdx = Math.max(1, entry.playlistProgress.current || 1)
+            const itemIdx = currentItemIdx - 1
+            if (entry.playlistProgress.items[itemIdx]) {
+              entry.playlistProgress.items[itemIdx].status = 'downloading'
+              entry.playlistProgress.items[itemIdx].progress = progress
+              entry.playlistProgress.items[itemIdx].speed = speed
+              entry.playlistProgress.items[itemIdx].size = size
+            }
+            const overallProgress = Math.min(
+              99.9,
+              ((currentItemIdx - 1) * 100 + progress) / entry.playlistProgress.total
+            )
+            this.emit('progress', {
+              id: job.id,
+              status: 'downloading',
+              progress: overallProgress,
+              size,
+              speed,
+              eta,
+              playlistProgress: entry.playlistProgress
+            })
+            return
+          }
+        }
+        this.emit('progress', { id: job.id, status: 'downloading', progress, size, speed, eta })
+        return
+      }
+
+      // ffmpeg progress line in stderr: size= 1234kB time=00:01:23.45 speed=2.5x
+      if (isStderr && trimmed.startsWith('size=') && trimmed.includes('time=')) {
+        const sizeMatch = /size=\s*(\d+[a-zA-Z]+)/.exec(trimmed)
+        const timeMatch = /time=([\d:.]+)/.exec(trimmed)
+        const speedMatch = /speed=\s*([\d.]+x|N\/A)/.exec(trimmed)
+
+        const size = sizeMatch ? sizeMatch[1] : ''
+        const time = timeMatch ? timeMatch[1] : ''
+        const speed = speedMatch ? speedMatch[1] : ''
+
+        const entry = this.active.get(job.id)
+        if (entry?.playlistProgress && entry.playlistProgress.total > 0) {
+          const currentItemIdx = Math.max(1, entry.playlistProgress.current || 1)
+          const itemIdx = currentItemIdx - 1
+          const item = entry.playlistProgress.items[itemIdx]
+          if (item) {
+            item.status = 'converting'
+            if (item.duration && time) {
+              const currentSecs = this.parseTimeToSeconds(time)
+              item.progress = Math.min(99.9, (currentSecs / item.duration) * 100)
+            } else {
+              item.progress = 99.9
+            }
+          }
+          const itemProgress = item?.progress ?? 99.9
+          const overallProgress = Math.min(
+            99.9,
+            ((currentItemIdx - 1) * 100 + itemProgress) / entry.playlistProgress.total
+          )
+          this.emit('progress', {
+            id: job.id,
+            status: 'downloading',
+            progress: overallProgress,
+            size,
+            speed,
+            playlistProgress: entry.playlistProgress
+          })
+          return
+        }
+
+        let progress = entry?.progress || 0
+        if (entry?.options.expectedDuration && time) {
+          const currentSecs = this.parseTimeToSeconds(time)
+          progress = Math.min(99.9, (currentSecs / entry.options.expectedDuration) * 100)
+          if (entry) entry.progress = progress
+        }
+        const status = entry?.phase === 'converting' ? 'converting' : 'downloading'
+        this.emit('progress', { id: job.id, status, progress, size, speed })
+        return
+      }
+
+      // Accumulate stderr lines as potential error message
+      if (isStderr) {
+        lastStderrLines.push(trimmed)
+        if (lastStderrLines.length > 10) lastStderrLines.shift()
+      }
+    }
+
     proc.stdout.on('data', (data: Buffer) => {
       const raw = data.toString()
       console.log(`[yt-dlp stdout ${job.id}]:\n${raw}`)
-      // yt-dlp writes [download] progress to stdout
-      const lines = raw.split(/[\r\n]+/)
-      for (const line of lines) {
+      for (const line of raw.split(/[\r\n]+/)) {
         const trimmed = line.trim()
-        if (!trimmed) continue
-
-        // Track destination files
-        const destMatch = /\[download\] Destination: (.*)/.exec(trimmed)
-        if (destMatch) {
-          destinations.push(destMatch[1].trim())
-          continue
-        }
-        const extractedAudioMatch = /\[ExtractAudio\] Destination: (.*)/.exec(trimmed)
-        if (extractedAudioMatch) {
-          destinations.push(extractedAudioMatch[1].trim())
-          continue
-        }
-        const mergeMatch = /\[Merger\] Merging formats into "(.*)"/.exec(trimmed)
-        if (mergeMatch) {
-          destinations.push(mergeMatch[1].trim())
-          continue
-        }
-
-        if (
-          trimmed.includes('[ExtractAudio]') ||
-          trimmed.includes('Merging') ||
-          trimmed.includes('[Metadata]') ||
-          trimmed.includes('[Thumbnails]') ||
-          trimmed.includes('[EmbedSubtitle]') ||
-          trimmed.includes('[Fixup]')
-        ) {
-          const entry = this.active.get(job.id)
-          if (entry) entry.phase = 'converting'
-          this.emit('progress', { id: job.id, status: 'converting', progress: 99.9 })
-          continue
-        }
-
-        // Progress line: [download]  45.3% of 128.30MiB at 5.20MiB/s ETA 00:12
-        const match = PROGRESS_RE.exec(trimmed)
-        if (match) {
-          const progress = parseFloat(match[1])
-          const size = match[2].trim()
-          let speed = match[3].trim()
-          const eta = match[4].trim()
-
-          // Speed smoothing
-          const entry = this.active.get(job.id)
-          if (entry) {
-            const currentSpeedBytes = this.parseSpeed(speed)
-            if (currentSpeedBytes > 0) {
-              entry.speedHistory.push(currentSpeedBytes)
-              if (entry.speedHistory.length > 10) entry.speedHistory.shift()
-              const avgSpeedBytes =
-                entry.speedHistory.reduce((a, b) => a + b, 0) / entry.speedHistory.length
-              speed = `~${this.formatSpeed(avgSpeedBytes)}`
-            }
-          }
-
-          this.emit('progress', { id: job.id, status: 'downloading', progress, size, speed, eta })
-        }
+        if (trimmed) parseLine(trimmed, false)
       }
     })
 
     proc.stderr.on('data', (data: Buffer) => {
       const raw = data.toString()
       console.log(`[yt-dlp stderr ${job.id}]:\n${raw}`)
-      const lines = raw.split(/[\r\n]+/)
-      for (const line of lines) {
+      for (const line of raw.split(/[\r\n]+/)) {
         const trimmed = line.trim()
-        if (!trimmed) continue
-
-        const destMatch = /\[download\] Destination: (.*)/.exec(trimmed)
-        if (destMatch) {
-          destinations.push(destMatch[1].trim())
-          continue
-        }
-        const extractedAudioMatch = /\[ExtractAudio\] Destination: (.*)/.exec(trimmed)
-        if (extractedAudioMatch) {
-          destinations.push(extractedAudioMatch[1].trim())
-          continue
-        }
-        const mergeMatch = /\[Merger\] Merging formats into "(.*)"/.exec(trimmed)
-        if (mergeMatch) {
-          destinations.push(mergeMatch[1].trim())
-          continue
-        }
-
-        const downloadMatch = PROGRESS_RE.exec(trimmed)
-        if (downloadMatch) {
-          const progress = parseFloat(downloadMatch[1])
-          const size = downloadMatch[2].trim()
-          let speed = downloadMatch[3].trim()
-          const eta = downloadMatch[4].trim()
-
-          const entry = this.active.get(job.id)
-          if (entry) {
-            const currentSpeedBytes = this.parseSpeed(speed)
-            if (currentSpeedBytes > 0) {
-              entry.speedHistory.push(currentSpeedBytes)
-              if (entry.speedHistory.length > 10) entry.speedHistory.shift()
-              const avgSpeedBytes =
-                entry.speedHistory.reduce((a, b) => a + b, 0) / entry.speedHistory.length
-              speed = `~${this.formatSpeed(avgSpeedBytes)}`
-            }
-          }
-
-          this.emit('progress', { id: job.id, status: 'downloading', progress, size, speed, eta })
-          continue
-        }
-
-        // ffmpeg conversion progress in stderr — detect and emit converting status
-        if (
-          trimmed.includes('[ExtractAudio]') ||
-          trimmed.includes('Merging') ||
-          trimmed.includes('[Metadata]') ||
-          trimmed.includes('[Thumbnails]') ||
-          trimmed.includes('[EmbedSubtitle]') ||
-          trimmed.includes('[Fixup]')
-        ) {
-          const entry = this.active.get(job.id)
-          if (entry) entry.phase = 'converting'
-          this.emit('progress', { id: job.id, status: 'converting', progress: 99.9 })
-          continue
-        }
-
-        if (trimmed.startsWith('size=') && trimmed.includes('time=')) {
-          const sizeMatch = /size=\s*(\d+[a-zA-Z]+)/.exec(trimmed)
-          const timeMatch = /time=([\d:.]+)/.exec(trimmed)
-          const speedMatch = /speed=\s*([\d.]+x|N\/A)/.exec(trimmed)
-
-          const size = sizeMatch ? sizeMatch[1] : ''
-          const time = timeMatch ? timeMatch[1] : ''
-          const speed = speedMatch ? speedMatch[1] : ''
-
-          const entry = this.active.get(job.id)
-          let progress = entry?.progress || 0
-          if (entry?.options.expectedDuration && time) {
-            const currentSecs = this.parseTimeToSeconds(time)
-            progress = Math.min(99.9, (currentSecs / entry.options.expectedDuration) * 100)
-            if (entry) entry.progress = progress
-          }
-          const status = entry?.phase === 'converting' ? 'converting' : 'downloading'
-
-          this.emit('progress', {
-            id: job.id,
-            status,
-            progress,
-            size: size,
-            speed: speed
-          })
-          continue
-        }
-
-        // Accumulate all other stderr lines as potential errors
-        lastStderrLines.push(trimmed)
-        if (lastStderrLines.length > 10) lastStderrLines.shift()
+        if (trimmed) parseLine(trimmed, true)
       }
     })
 
@@ -344,13 +473,20 @@ export class DownloadQueueManager extends EventEmitter {
 
       this.active.delete(job.id)
       if (code === 0) {
+        if (entry?.playlistProgress) {
+          for (const item of entry.playlistProgress.items) {
+            item.status = 'done'
+            item.progress = 100
+          }
+        }
         this.emit('completed', {
           id: job.id,
           status: 'done',
           progress: 100,
           outputPath: job.outputPath,
           finalFilePath: finalFilePath,
-          size: finalFileSize
+          size: finalFileSize,
+          playlistProgress: entry?.playlistProgress
         })
       } else if (code !== null) {
         const errorDetail = lastStderrLines.join('').trim() || `yt-dlp exited with code ${code}`
