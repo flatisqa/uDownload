@@ -1,5 +1,11 @@
 import { StateCreator } from 'zustand'
-import type { VideoMetadata, MediaFormat, AudioQuality, VideoQuality } from '@shared/types/download'
+import type {
+  VideoMetadata,
+  MediaFormat,
+  AudioQuality,
+  VideoQuality,
+  DetectedTrack
+} from '@shared/types/download'
 
 export type DownloadStep = 'idle' | 'fetching' | 'preview' | 'downloading'
 
@@ -22,6 +28,7 @@ export interface DownloaderSlice {
   customArtist: string
   customYear: string
   customDescription: string
+  detectedTracks: DetectedTrack[]
 
   // Actions
   setUrl: (url: string) => void
@@ -41,6 +48,10 @@ export interface DownloaderSlice {
   setCustomArtist: (artist: string) => void
   setCustomYear: (year: string) => void
   setCustomDescription: (desc: string) => void
+  setDetectedTracks: (tracks: DetectedTrack[]) => void
+  toggleDetectedTrack: (id: string) => void
+  toggleAllDetectedTracks: (selected: boolean) => void
+  updateDetectedTrackTitle: (id: string, title: string) => void
   resetDownloader: () => void
 }
 
@@ -62,6 +73,7 @@ export const createDownloaderSlice: StateCreator<DownloaderSlice> = (set) => ({
   customArtist: '',
   customYear: '',
   customDescription: '',
+  detectedTracks: [],
 
   setUrl: (url) => set({ url }),
   setStep: (step) => set({ step }),
@@ -80,6 +92,21 @@ export const createDownloaderSlice: StateCreator<DownloaderSlice> = (set) => ({
   setCustomArtist: (customArtist) => set({ customArtist }),
   setCustomYear: (customYear) => set({ customYear }),
   setCustomDescription: (customDescription) => set({ customDescription }),
+  setDetectedTracks: (detectedTracks) => set({ detectedTracks }),
+  toggleDetectedTrack: (id) =>
+    set((state) => ({
+      detectedTracks: state.detectedTracks.map((t) =>
+        t.id === id ? { ...t, selected: !t.selected } : t
+      )
+    })),
+  toggleAllDetectedTracks: (selected) =>
+    set((state) => ({
+      detectedTracks: state.detectedTracks.map((t) => ({ ...t, selected }))
+    })),
+  updateDetectedTrackTitle: (id, title) =>
+    set((state) => ({
+      detectedTracks: state.detectedTracks.map((t) => (t.id === id ? { ...t, title } : t))
+    })),
 
   resetDownloader: () =>
     set({
@@ -96,7 +123,8 @@ export const createDownloaderSlice: StateCreator<DownloaderSlice> = (set) => ({
       customThumbnail: '',
       customArtist: '',
       customYear: '',
-      customDescription: ''
+      customDescription: '',
+      detectedTracks: []
       // Intentionally keep format/quality preferences intact
     })
 })

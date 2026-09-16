@@ -27,6 +27,8 @@ type ProcessEntry = {
   progress?: number
   phase: 'downloading' | 'converting'
   playlistProgress?: PlaylistProgress
+  isMultiTrack?: boolean
+  isCancelled?: boolean
 }
 
 export class DownloadQueueManager extends EventEmitter {
@@ -63,7 +65,10 @@ export class DownloadQueueManager extends EventEmitter {
     // Kill active process
     const entry = this.active.get(jobId)
     if (entry) {
-      entry.process.kill('SIGTERM')
+      entry.isCancelled = true
+      if (entry.process && !entry.process.killed) {
+        entry.process.kill('SIGTERM')
+      }
       this.active.delete(jobId)
       if (entry.playlistProgress) {
         for (const item of entry.playlistProgress.items) {
@@ -118,6 +123,11 @@ export class DownloadQueueManager extends EventEmitter {
   }
 
   private startJob(job: DownloadJob): void {
+    if (job.options.trackSections && job.options.trackSections.length > 0) {
+      this.startMultiTrackJob(job)
+      return
+    }
+
     const config = this.store.get('config') as Partial<AppConfig> | undefined
     let outputPath = job.options.outputPath?.trim() || ''
 
@@ -496,6 +506,380 @@ export class DownloadQueueManager extends EventEmitter {
           error: errorDetail
         })
       }
+      this.tick()
+    })
+
+    proc.on('error', (err) => {
+      this.active.delete(job.id)
+      this.emit('error', { id: job.id, status: 'error', error: err.message })
+      this.tick()
+    })
+  }
+
+  private startMultiTrackJob(job: DownloadJob): void {
+    const config = this.store.get('config') as Partial<AppConfig> | undefined
+    let outputPath = job.options.outputPath?.trim() || ''
+
+    const defaultAudio = config?.outputDirectoryAudio?.trim() || path.join(os.homedir(), 'Music')
+    const defaultVideo = config?.outputDirectoryVideo?.trim() || path.join(os.homedir(), 'Videos')
+    const defaultBaseDir = job.options.format === 'audio' ? defaultAudio : defaultVideo
+
+    const isBareRootFolder = Boolean(
+      outputPath && /^\/[^/]+$/.test(outputPath) && !fs.existsSync(outputPath)
+    )
+
+    if (!outputPath || isBareRootFolder || !path.isAbsolute(outputPath)) {
+      const folderName = outputPath ? path.basename(outputPath) : ''
+      outputPath = folderName ? path.join(defaultBaseDir, folderName) : defaultBaseDir
+    }
+
+    job.options.outputPath = outputPath
+    job.outputPath = outputPath
+
+    try {
+      if (!fs.existsSync(outputPath)) {
+        fs.mkdirSync(outputPath, { recursive: true })
+      }
+    } catch {
+      this.emit('error', {
+        id: job.id,
+        status: 'error',
+        error: `Failed to create directory: ${outputPath}`
+      })
+      this.tick()
+      return
+    }
+
+    const trackSections = job.options.trackSections!
+    const totalTracks = trackSections.length
+
+    // Calculate duration bounds for each track to distribute progress proportionally
+    const trackDurations = trackSections.map((t) => {
+      const d = t.duration || t.endTime - t.startTime
+      return d > 0 ? d : 180
+    })
+    const totalDurationSec = trackDurations.reduce((a, b) => a + b, 0)
+
+    let accumulatedSec = 0
+    const trackBounds = trackDurations.map((dur) => {
+      const startPct = totalDurationSec > 0 ? (accumulatedSec / totalDurationSec) * 100 : 0
+      accumulatedSec += dur
+      const endPct = totalDurationSec > 0 ? (accumulatedSec / totalDurationSec) * 100 : 100
+      return { startPct, endPct }
+    })
+
+    const initialPlaylistProgress: PlaylistProgress = job.playlistProgress
+      ? JSON.parse(JSON.stringify(job.playlistProgress))
+      : {
+          current: 1,
+          total: totalTracks,
+          items: trackSections.map((t, idx) => ({
+            id: String(idx + 1),
+            title: t.title,
+            duration: t.duration,
+            status: 'pending' as const,
+            progress: 0
+          }))
+        }
+
+    initialPlaylistProgress.current = 1
+    if (initialPlaylistProgress.items[0]) {
+      initialPlaylistProgress.items[0].status = 'downloading'
+    }
+
+    const destinations: string[] = []
+
+    const entry: ProcessEntry = {
+      process: null as unknown as ChildProcess,
+      job,
+      options: job.options,
+      destinations,
+      speedHistory: [],
+      progress: 0,
+      phase: 'downloading',
+      playlistProgress: initialPlaylistProgress,
+      isMultiTrack: true,
+      isCancelled: false
+    }
+
+    this.active.set(job.id, entry)
+    this.emit('progress', {
+      id: job.id,
+      status: 'starting',
+      progress: 0,
+      playlistProgress: initialPlaylistProgress
+    })
+
+    const ytdlp = getYtdlpBin()
+    const ffmpeg = getFfmpegBin()
+
+    const ext =
+      job.options.audioQuality === 'mp3'
+        ? 'mp3'
+        : job.options.audioQuality === 'flac'
+          ? 'flac'
+          : job.options.audioQuality === 'aac'
+            ? 'm4a'
+            : 'opus'
+
+    const masterPrefix = `__master_${job.id}`
+    const masterTemplate = path.join(outputPath, `${masterPrefix}.%(ext)s`)
+
+    const args = buildYtdlpArgs({
+      format: 'audio',
+      audioQuality: job.options.audioQuality,
+      videoQuality: job.options.videoQuality,
+      outputPath,
+      outputTemplate: masterTemplate,
+      downloadSubtitles: false,
+      embedSubtitles: false,
+      subtitleLanguage: job.options.subtitleLanguage,
+      embedLyrics: job.options.embedLyrics,
+      embedThumbnail: job.options.embedThumbnail,
+      embedMetadata: job.options.embedMetadata,
+      cookiesFromBrowser: job.options.cookiesFromBrowser,
+      cookiesManual: job.options.cookiesManual,
+      cookiesFilePath: job.options.cookiesFilePath,
+      selectedChapters: undefined,
+      playlistAll: false,
+      timeFrom: undefined,
+      timeTo: undefined,
+      customArgs: job.options.customArgs,
+      ffmpegBin: ffmpeg,
+      customTitle: masterPrefix,
+      customThumbnail: job.options.customThumbnail,
+      customArtist: job.options.customArtist,
+      customYear: job.options.customYear,
+      customDescription: job.options.customDescription
+    })
+
+    args.push('--continue', job.url)
+    console.log('[DownloadQueueManager] Downloading master audio with args:', args.join(' '))
+
+    const proc = spawn(ytdlp, args)
+    entry.process = proc
+
+    const lastStderrLines: string[] = []
+
+    const parseLine = (trimmed: string, isStderr: boolean): void => {
+      const progressMatch = PROGRESS_RE.exec(trimmed)
+      if (progressMatch) {
+        const percent = parseFloat(progressMatch[1])
+        const size = progressMatch[2].trim()
+        const speed = progressMatch[3].trim()
+        const eta = progressMatch[4].trim()
+
+        if (entry.playlistProgress) {
+          // Identify which track is currently receiving audio stream
+          let activeIndex = totalTracks - 1
+          for (let i = 0; i < totalTracks; i++) {
+            if (percent < trackBounds[i].endPct) {
+              activeIndex = i
+              break
+            }
+          }
+
+          const isComplete = percent >= 99.8
+
+          for (let i = 0; i < totalTracks; i++) {
+            const item = entry.playlistProgress.items[i]
+            if (!item) continue
+            if (isComplete || i < activeIndex) {
+              item.status = 'done'
+              item.progress = 100
+            } else if (i === activeIndex) {
+              item.status = 'downloading'
+              const bounds = trackBounds[i]
+              const trackRange = bounds.endPct - bounds.startPct
+              const trackProgress =
+                trackRange > 0
+                  ? Math.min(99.9, Math.max(0, ((percent - bounds.startPct) / trackRange) * 100))
+                  : 50
+              item.progress = trackProgress
+              item.speed = speed
+            } else {
+              item.status = 'pending'
+              item.progress = 0
+            }
+          }
+
+          entry.playlistProgress.current = isComplete ? totalTracks : activeIndex + 1
+        }
+
+        this.emit('progress', {
+          id: job.id,
+          status: 'downloading',
+          progress: Math.min(99.9, percent),
+          speed,
+          eta,
+          size,
+          playlistProgress: entry.playlistProgress
+        })
+        return
+      }
+
+      if (
+        trimmed.includes('[ExtractAudio]') ||
+        trimmed.includes('Merging') ||
+        trimmed.includes('[Metadata]') ||
+        trimmed.includes('[Thumbnails]')
+      ) {
+        entry.phase = 'converting'
+        if (entry.playlistProgress) {
+          entry.playlistProgress.current = totalTracks
+          for (const item of entry.playlistProgress.items) {
+            item.status = 'done'
+            item.progress = 100
+          }
+        }
+        this.emit('progress', {
+          id: job.id,
+          status: 'converting',
+          progress: 99.9,
+          playlistProgress: entry.playlistProgress
+        })
+        return
+      }
+
+      if (isStderr) {
+        lastStderrLines.push(trimmed)
+        if (lastStderrLines.length > 10) lastStderrLines.shift()
+      }
+    }
+
+    proc.stdout.on('data', (data: Buffer) => {
+      const raw = data.toString()
+      for (const line of raw.split(/[\r\n]+/)) {
+        const trimmed = line.trim()
+        if (trimmed) parseLine(trimmed, false)
+      }
+    })
+
+    proc.stderr.on('data', (data: Buffer) => {
+      const raw = data.toString()
+      for (const line of raw.split(/[\r\n]+/)) {
+        const trimmed = line.trim()
+        if (trimmed) parseLine(trimmed, true)
+      }
+    })
+
+    proc.on('close', async (code) => {
+      if (entry.isCancelled) return
+
+      if (code !== 0) {
+        const errorDetail = lastStderrLines.join(' ').trim() || `yt-dlp exited with code ${code}`
+        this.active.delete(job.id)
+        this.emit('error', { id: job.id, status: 'error', error: errorDetail })
+        this.tick()
+        return
+      }
+
+      // Find downloaded master file
+      let foundMaster: string | undefined
+      try {
+        const files = fs.readdirSync(outputPath)
+        foundMaster = files.find((f) => f.startsWith(masterPrefix))
+      } catch {
+        // Ignore read error
+      }
+
+      if (!foundMaster) {
+        this.active.delete(job.id)
+        this.emit('error', {
+          id: job.id,
+          status: 'error',
+          error: 'Master audio file not found after download'
+        })
+        this.tick()
+        return
+      }
+
+      const masterAudioPath = path.join(outputPath, foundMaster)
+      const masterExt = path.extname(foundMaster).slice(1) || ext
+
+      // Stage 2: Instant local slicing with FFmpeg
+      entry.phase = 'converting'
+      if (entry.playlistProgress) {
+        entry.playlistProgress.current = totalTracks
+        for (const item of entry.playlistProgress.items) {
+          item.status = 'done'
+          item.progress = 100
+        }
+      }
+      this.emit('progress', {
+        id: job.id,
+        status: 'converting',
+        progress: 99.9,
+        playlistProgress: entry.playlistProgress
+      })
+
+      for (let i = 0; i < totalTracks; i++) {
+        if (entry.isCancelled) break
+
+        const track = trackSections[i]
+        const cleanTrackTitle = track.title.replace(/[\\/:*?"<>|]/g, '_').trim()
+        const trackOutPath = path.join(outputPath, `${cleanTrackTitle}.${masterExt}`)
+        destinations.push(trackOutPath)
+
+        const ffmpegArgs = [
+          '-y',
+          '-ss',
+          String(track.startTime),
+          '-to',
+          String(track.endTime),
+          '-i',
+          masterAudioPath,
+          '-c',
+          'copy',
+          '-metadata',
+          `title=${track.title}`,
+          '-metadata',
+          `track=${i + 1}/${totalTracks}`,
+          trackOutPath
+        ]
+
+        await new Promise<void>((resolve) => {
+          const ff = spawn(ffmpeg, ffmpegArgs)
+          entry.process = ff
+          ff.on('close', () => resolve())
+          ff.on('error', () => resolve())
+        })
+      }
+
+      // Clean up master audio file
+      try {
+        if (fs.existsSync(masterAudioPath)) {
+          fs.unlinkSync(masterAudioPath)
+        }
+      } catch {
+        // Ignore deletion error
+      }
+
+      if (entry.isCancelled) return
+
+      this.active.delete(job.id)
+
+      let totalBytes = 0
+      for (const dest of destinations) {
+        try {
+          if (fs.existsSync(dest)) totalBytes += fs.statSync(dest).size
+        } catch {
+          // Ignore file access error
+        }
+      }
+      const finalSize = totalBytes > 0 ? this.formatBytes(totalBytes) : undefined
+      const finalFilePath =
+        destinations.length > 0 ? destinations[destinations.length - 1] : undefined
+
+      this.emit('completed', {
+        id: job.id,
+        status: 'done',
+        progress: 100,
+        outputPath: job.outputPath,
+        finalFilePath,
+        size: finalSize,
+        playlistProgress: entry.playlistProgress
+      })
       this.tick()
     })
 

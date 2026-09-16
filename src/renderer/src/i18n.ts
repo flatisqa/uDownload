@@ -46,6 +46,26 @@ export const translations = {
     metaYear: 'Year',
     metaDescription: 'Description / Comment',
 
+    // Track Splitting
+    trackSplitTitle: 'Track Splitting (Silence / Text)',
+    trackSplitDesc: 'Auto-detect silence between songs in long audio or paste a tracklist',
+    detectSilenceBtn: 'Detect Tracks by Silence (FFmpeg)',
+    detectingSilence: 'Scanning audio stream via FFmpeg...',
+    pasteTracklistBtn: 'Paste Tracklist Text',
+    pasteTracklistPlaceholder:
+      'Paste timestamp list (one per line):\n00:00 Intro\n03:45 First Track\n07:12 Second Track',
+    applyTracklist: 'Apply Tracklist',
+    detectedTracksCount: 'Detected Tracks:',
+    downloadSelectedTracks: 'Download Selected Tracks',
+    clearTracks: 'Clear Tracks',
+    noSilenceDetected:
+      'No pauses detected. Try adjusting silence threshold or paste tracklist as text.',
+    noiseThreshold: 'Silence threshold:',
+    minSilenceDuration: 'Min silence duration:',
+    trackDuration: 'duration',
+    cancelScan: 'Cancel',
+    scanningProgressTitle: 'Scanning audio stream...',
+
     // Download BTN
     downloadBtn: '⬇ Download',
 
@@ -235,6 +255,26 @@ export const translations = {
     metaArtist: 'Исполнитель',
     metaYear: 'Год',
     metaDescription: 'Описание / Комментарий',
+
+    // Track Splitting
+    trackSplitTitle: 'Разбивка на треки (FFmpeg / Текст)',
+    trackSplitDesc: 'Автопоиск пауз тишины между песнями или вставка готового треклиста',
+    detectSilenceBtn: 'Найти треки по паузам (FFmpeg)',
+    detectingSilence: 'Сканирование аудиопотока через FFmpeg...',
+    pasteTracklistBtn: 'Вставить треклист текстом',
+    pasteTracklistPlaceholder:
+      'Вставьте список таймкодов (каждый с новой строки):\n00:00 Вступление\n03:45 Первый трек\n07:12 Второй трек',
+    applyTracklist: 'Применить треклист',
+    detectedTracksCount: 'Найдено треков:',
+    downloadSelectedTracks: 'Скачать выбранные треки',
+    clearTracks: 'Очистить треки',
+    noSilenceDetected:
+      'Пауз не обнаружено. Попробуйте изменить порог тишины или вставить треклист текстом.',
+    noiseThreshold: 'Порог тишины:',
+    minSilenceDuration: 'Мин. пауза:',
+    trackDuration: 'длит.',
+    cancelScan: 'Отмена',
+    scanningProgressTitle: 'Сканирование аудиопотока...',
 
     // Download BTN
     downloadBtn: '⬇ Скачать',

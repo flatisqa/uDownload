@@ -32,7 +32,7 @@ export const FormatConfigPanel: React.FC = () => {
     : settings.outputDirectoryVideo || settings.outputDirectoryAudio
 
   const handlePickFolder = async (): Promise<void> => {
-    const res = await window.api.openFolderDialog()
+    const res = await window.api.openFolderDialog(currentFolder)
     if (res.success && res.data) {
       if (isAudio) {
         await updateSettings({ outputDirectoryAudio: res.data })

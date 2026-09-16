@@ -41,6 +41,28 @@ export interface ChapterInfo {
   selected: boolean
 }
 
+export interface DetectedTrack {
+  id: string
+  title: string
+  startTime: number
+  endTime: number
+  duration: number
+  selected: boolean
+}
+
+export interface SilenceDetectOptions {
+  noiseLevel?: number
+  minSilenceDuration?: number
+  minTrackDuration?: number
+}
+
+export interface TrackDetectProgress {
+  percent: number
+  currentTime: number
+  totalDuration: number
+  speed?: string
+}
+
 export interface PlaylistItem {
   id: string
   title: string
@@ -64,6 +86,13 @@ export interface VideoMetadata {
   originalAudioBitrate?: number // kbps
   description?: string
   uploadDate?: string
+}
+
+export interface DownloadTrackSection {
+  title: string
+  startTime: number
+  endTime: number
+  duration: number
 }
 
 export interface DownloadOptions {
@@ -97,6 +126,7 @@ export interface DownloadOptions {
   customYear?: string
   customDescription?: string
   expectedDuration?: number
+  trackSections?: DownloadTrackSection[]
 }
 
 export interface PlaylistItemProgress {

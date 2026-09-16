@@ -46,7 +46,7 @@ const api = {
   toggleClipboard: (enabled: boolean) => ipcRenderer.invoke('clipboard:toggle', enabled),
 
   // Folder picker
-  openFolderDialog: () => ipcRenderer.invoke('dialog:openFolder'),
+  openFolderDialog: (defaultPath?: string) => ipcRenderer.invoke('dialog:openFolder', defaultPath),
   openImageDialog: () => ipcRenderer.invoke('dialog:openImage'),
 
   openTxtFileDialog: () => ipcRenderer.invoke('dialog:openTxtFile'),
@@ -76,6 +76,17 @@ const api = {
     return () => ipcRenderer.removeListener('clipboard:linkDetected', handler)
   },
 
+  onDetectProgress: (
+    callback: (progress: import('@shared/types/download').TrackDetectProgress) => void
+  ): (() => void) => {
+    const handler = (
+      _: Electron.IpcRendererEvent,
+      data: import('@shared/types/download').TrackDetectProgress
+    ): void => callback(data)
+    ipcRenderer.on('audio:detectProgress', handler)
+    return () => ipcRenderer.removeListener('audio:detectProgress', handler)
+  },
+
   // Window Management
   minimizeWindow: () => ipcRenderer.send('window:minimize'),
   maximizeWindow: () => ipcRenderer.send('window:maximize'),
@@ -101,7 +112,30 @@ const api = {
       path: string
       name: string
     }>,
-  getAppVersion: () => ipcRenderer.invoke('app:getVersion') as Promise<string>
+  getAppVersion: () => ipcRenderer.invoke('app:getVersion') as Promise<string>,
+  detectTracks: (
+    url: string,
+    totalDuration: number,
+    cookies?: {
+      cookiesFromBrowser?: string
+      cookiesManual?: string
+      cookiesFilePath?: string
+    },
+    options?: import('@shared/types/download').SilenceDetectOptions
+  ) =>
+    ipcRenderer.invoke('audio:detectTracks', url, totalDuration, cookies, options) as Promise<{
+      success: boolean
+      data?: import('@shared/types/download').DetectedTrack[]
+      error?: string
+    }>,
+  parseTracklist: (text: string, totalDuration: number) =>
+    ipcRenderer.invoke('audio:parseTracklist', text, totalDuration) as Promise<{
+      success: boolean
+      data?: import('@shared/types/download').DetectedTrack[]
+      error?: string
+    }>,
+  cancelDetectTracks: () =>
+    ipcRenderer.invoke('audio:cancelDetectTracks') as Promise<{ success: boolean }>
 }
 
 if (process.contextIsolated) {

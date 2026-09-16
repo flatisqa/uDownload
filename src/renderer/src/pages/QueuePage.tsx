@@ -201,7 +201,9 @@ function JobCard({ job }: { job: DownloadJob }): ReactElement {
             {isPlaylistJob && (
               <span className="badge badge-download" style={{ fontSize: 11 }}>
                 {job.status === 'done'
-                  ? `Плейлист (${job.playlistProgress!.total})`
+                  ? job.metadata?.isPlaylist
+                    ? `Плейлист (${job.playlistProgress!.total})`
+                    : `Треки (${job.playlistProgress!.total})`
                   : `Трек ${job.playlistProgress!.current || 1}/${job.playlistProgress!.total}`}
               </span>
             )}

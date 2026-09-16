@@ -9,11 +9,17 @@ import { fetchMetadata } from '../services/MetadataService'
 import { downloadQueue } from '../services/DownloadQueueManager'
 import * as BinaryManager from '../services/BinaryManager'
 import { clipboardWatcher } from '../services/ClipboardWatcher'
+import {
+  detectSilenceTracks,
+  parseTextTracklist,
+  cancelActiveDetection
+} from '../services/TrackDetectionService'
 import type {
   DownloadOptions,
   AppConfig,
   DownloadJob,
-  PlaylistProgress
+  PlaylistProgress,
+  SilenceDetectOptions
 } from '@shared/types/download'
 import { DEFAULT_CONFIG } from '@shared/types/download'
 
@@ -160,9 +166,22 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
 
   // ─── Dialog ────────────────────────────────────────────────────────────────
   // Folder picker
-  ipcMain.handle('dialog:openFolder', async () => {
+  ipcMain.handle('dialog:openFolder', async (_e, defaultPath?: string) => {
     try {
+      let resolvedPath: string | undefined = undefined
+      if (defaultPath && typeof defaultPath === 'string') {
+        const trimmed = defaultPath.trim()
+        if (fs.existsSync(trimmed)) {
+          resolvedPath = trimmed
+        } else {
+          const parent = path.dirname(trimmed)
+          if (fs.existsSync(parent)) {
+            resolvedPath = parent
+          }
+        }
+      }
       const result = await dialog.showOpenDialog(mainWindow, {
+        defaultPath: resolvedPath,
         properties: ['openDirectory']
       })
       if (result.canceled) return { success: false }
@@ -328,6 +347,55 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
   // ─── App Info ──────────────────────────────────────────────────────────────
   ipcMain.handle('app:getVersion', () => {
     return app.getVersion()
+  })
+
+  // ─── Track Detection & Silence Analysis ──────────────────────────────────
+  ipcMain.handle(
+    'audio:detectTracks',
+    async (
+      _e,
+      url: string,
+      totalDuration: number,
+      cookies?: {
+        cookiesFromBrowser?: string
+        cookiesManual?: string
+        cookiesFilePath?: string
+      },
+      options?: SilenceDetectOptions
+    ) => {
+      try {
+        const tracks = await detectSilenceTracks(
+          url,
+          totalDuration,
+          cookies,
+          options,
+          (progress) => {
+            if (!mainWindow.isDestroyed()) {
+              mainWindow.webContents.send('audio:detectProgress', progress)
+            }
+          }
+        )
+        return { success: true, data: tracks }
+      } catch (error) {
+        console.error('[IPC] audio:detectTracks error:', error)
+        return { success: false, error: String(error) }
+      }
+    }
+  )
+
+  ipcMain.handle('audio:cancelDetectTracks', () => {
+    cancelActiveDetection()
+    return { success: true }
+  })
+
+  ipcMain.handle('audio:parseTracklist', async (_e, text: string, totalDuration: number) => {
+    try {
+      const tracks = parseTextTracklist(text, totalDuration)
+      return { success: true, data: tracks }
+    } catch (error) {
+      console.error('[IPC] audio:parseTracklist error:', error)
+      return { success: false, error: String(error) }
+    }
   })
 
   // ─── Forward queue events to renderer ─────────────────────────────────────

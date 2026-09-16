@@ -25,7 +25,7 @@ export interface IElectronAPI {
   getSettings: () => Promise<{ success: boolean; data?: AppConfig }>
   setSettings: (settings: Partial<AppConfig>) => Promise<{ success: boolean }>
   toggleClipboard: (enabled: boolean) => Promise<{ success: boolean }>
-  openFolderDialog: () => Promise<{ success: boolean; data?: string }>
+  openFolderDialog: (defaultPath?: string) => Promise<{ success: boolean; data?: string }>
   openImageDialog: () => Promise<{ success: boolean; data?: string }>
   openTxtFileDialog: () => Promise<{ success: boolean; data?: string }>
   showInFolder: (path: string) => Promise<void>
@@ -39,10 +39,37 @@ export interface IElectronAPI {
     format: string
   ) => Promise<{ exists: boolean; isDirectory: boolean; path: string; name: string }>
   getAppVersion: () => Promise<string>
+  detectTracks: (
+    url: string,
+    totalDuration: number,
+    cookies?: {
+      cookiesFromBrowser?: string
+      cookiesManual?: string
+      cookiesFilePath?: string
+    },
+    options?: import('@shared/types/download').SilenceDetectOptions
+  ) => Promise<{
+    success: boolean
+    data?: import('@shared/types/download').DetectedTrack[]
+    error?: string
+  }>
+  parseTracklist: (
+    text: string,
+    totalDuration: number
+  ) => Promise<{
+    success: boolean
+    data?: import('@shared/types/download').DetectedTrack[]
+    error?: string
+  }>
+  cancelDetectTracks: () => Promise<{ success: boolean }>
+
   onDownloadProgress: (callback: (data: object) => void) => () => void
   onDownloadCompleted: (callback: (data: object) => void) => () => void
   onDownloadError: (callback: (data: object) => void) => () => void
   onClipboardLink: (callback: (url: string) => void) => () => void
+  onDetectProgress: (
+    callback: (progress: import('@shared/types/download').TrackDetectProgress) => void
+  ) => () => void
 }
 
 declare global {

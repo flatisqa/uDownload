@@ -163,7 +163,7 @@ export default function SettingsPage(): ReactElement {
                 className="btn btn-ghost"
                 style={{ flexShrink: 0 }}
                 onClick={async () => {
-                  const res = await window.api.openFolderDialog()
+                  const res = await window.api.openFolderDialog(settings.outputDirectoryVideo)
                   if (res.success && res.data) updateSettings({ outputDirectoryVideo: res.data })
                 }}
               >
@@ -195,7 +195,7 @@ export default function SettingsPage(): ReactElement {
                 className="btn btn-ghost"
                 style={{ flexShrink: 0 }}
                 onClick={async () => {
-                  const res = await window.api.openFolderDialog()
+                  const res = await window.api.openFolderDialog(settings.outputDirectoryAudio)
                   if (res.success && res.data) updateSettings({ outputDirectoryAudio: res.data })
                 }}
               >

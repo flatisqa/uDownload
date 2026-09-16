@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
-import type { DownloadOptions } from '@shared/types/download'
+import type {
+  DownloadOptions,
+  DownloadTrackSection,
+  PlaylistProgress
+} from '@shared/types/download'
 import { useStore } from '../store'
 import { useTranslation } from '../i18n'
 import { UrlInputPanel } from '../components/Downloader/UrlInputPanel'
@@ -8,6 +12,7 @@ import { FormatConfigPanel } from '../components/Downloader/FormatConfigPanel'
 import { PlaylistPanel } from '../components/Downloader/PlaylistPanel'
 import { ChaptersPanel } from '../components/Downloader/ChaptersPanel'
 import { TimingPanel } from '../components/Downloader/TimingPanel'
+import { TrackSplitPanel } from '../components/Downloader/TrackSplitPanel'
 import { EmptyState } from '../components/Downloader/EmptyState'
 import { ConfirmConflictModal, ConflictInfo } from '../components/Downloader/ConfirmConflictModal'
 
@@ -58,6 +63,7 @@ export default function DownloaderPage({
   const setCustomYear = useStore((s) => s.setCustomYear)
   const customDescription = useStore((s) => s.customDescription)
   const setCustomDescription = useStore((s) => s.setCustomDescription)
+  const detectedTracks = useStore((s) => s.detectedTracks)
 
   const resetDownloader = useStore((s) => s.resetDownloader)
 
@@ -144,9 +150,10 @@ export default function DownloaderPage({
       ? `${baseOutputPath}/${albumFolderName}`
       : albumFolderName
     const isMultiChapter = chapterMode === 'selected' && selectedChapters.length > 1
+    const selectedDetectedTracks = detectedTracks.filter((t) => t.selected)
 
     if (!force) {
-      const isFolderCheck = isPlaylist || isMultiChapter
+      const isFolderCheck = isPlaylist || isMultiChapter || selectedDetectedTracks.length > 1
       const titleToCheck = isFolderCheck ? albumFolderName : customTitle || meta.title
       try {
         const conflictCheck = await window.api.checkConflict(
@@ -254,6 +261,69 @@ export default function DownloaderPage({
       if (onGoToQueue) onGoToQueue()
       resetDownloader()
       setStep('idle')
+      return
+    }
+
+    // If we have detected tracks from silence/text splitting, download as a single grouped album job
+    if (selectedDetectedTracks.length > 0 && !meta.isPlaylist) {
+      const trackSections: DownloadTrackSection[] = selectedDetectedTracks.map((track, i) => {
+        const prefix = `${String(i + 1).padStart(2, '0')}. `
+        const cleanTitle = track.title.replace(/^\d+[\s\-–—.:)]+/, '').trim()
+        const trackTitle = `${prefix}${cleanTitle}`
+        return {
+          title: trackTitle,
+          startTime: track.startTime,
+          endTime: track.endTime,
+          duration: track.duration
+        }
+      })
+
+      const initialPlaylistProgress: PlaylistProgress = {
+        current: 1,
+        total: trackSections.length,
+        items: trackSections.map((t, idx) => ({
+          id: String(idx + 1),
+          title: t.title,
+          duration: t.duration,
+          status: 'pending' as const,
+          progress: 0
+        }))
+      }
+
+      const multiTrackOptions: DownloadOptions = {
+        ...baseOptions,
+        outputPath: albumFolderPath,
+        trackSections
+      }
+
+      setStep('downloading')
+      const res = await window.api.startDownload(
+        meta.url,
+        multiTrackOptions,
+        initialPlaylistProgress
+      )
+      if (res.success && res.data) {
+        addJob({
+          id: res.data,
+          url: meta.url,
+          metadata: {
+            ...meta,
+            title: customTitle || meta.title,
+            thumbnail: customThumbnail || meta.thumbnail
+          },
+          options: multiTrackOptions,
+          status: 'pending',
+          progress: 0,
+          createdAt: Date.now(),
+          playlistProgress: initialPlaylistProgress
+        })
+        if (onGoToQueue) onGoToQueue()
+        resetDownloader()
+        setStep('idle')
+      } else {
+        setError(res.error || 'Failed to start download')
+        setStep('preview')
+      }
       return
     }
 
@@ -369,6 +439,7 @@ export default function DownloaderPage({
           <PlaylistPanel />
           <ChaptersPanel />
           <TimingPanel />
+          <TrackSplitPanel onDownloadTracks={() => handleDownload(false)} />
         </div>
       )}
 

@@ -256,6 +256,7 @@ export function buildYtdlpArgs(options: {
 
   // Format selection
   if (options.format === 'audio') {
+    args.push('-f', 'ba/b[height<=360]/b')
     const q = options.audioQuality
     if (q === 'best') {
       // Use opus explicitly to avoid mutagen dependency for WebM metadata embedding
@@ -420,7 +421,7 @@ export function buildYtdlpArgs(options: {
     args.push('-o', outputTemplate)
   }
 
-  if (hasCuts) {
+  if (hasCuts && options.format !== 'audio') {
     args.push('--force-keyframes-at-cuts')
   }
 
