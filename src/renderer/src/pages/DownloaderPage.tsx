@@ -149,7 +149,7 @@ export default function DownloaderPage({
     const albumFolderPath = baseOutputPath
       ? `${baseOutputPath}/${albumFolderName}`
       : albumFolderName
-    const isMultiChapter = chapterMode === 'selected' && selectedChapters.length > 1
+    const isMultiChapter = chapterMode === 'selected' && selectedChapters.length > 0
     const selectedDetectedTracks = detectedTracks.filter((t) => t.selected)
 
     if (!force) {
@@ -208,64 +208,79 @@ export default function DownloaderPage({
     const useAlbumFolder = isPlaylist || isMultiChapter || albumFolderExists
     const finalOutputPath = useAlbumFolder ? albumFolderPath : baseOptions.outputPath
 
-    // If we have manual chapter selections AND mode is 'selected', we split them into separate jobs.
+    // If we have manual chapter selections AND mode is 'selected', download as a single grouped album job
     if (chapterMode === 'selected' && selectedChapters.length > 0 && !meta.isPlaylist) {
-      for (const chapterKey of selectedChapters) {
-        const chapterInfo = meta.chapters?.find((c) => `${c.startTime}-${c.endTime}` === chapterKey)
-        const chapterIndex =
-          meta.chapters?.findIndex((c) => `${c.startTime}-${c.endTime}` === chapterKey) ?? -1
+      const selectedChapterInfos = (meta.chapters || [])
+        .filter((c) => selectedChapters.includes(`${c.startTime}-${c.endTime}`))
+        .sort((a, b) => a.startTime - b.startTime)
 
-        const chapterDuration = chapterInfo
-          ? chapterInfo.endTime - chapterInfo.startTime
-          : undefined
+      if (selectedChapterInfos.length > 0) {
+        const trackSections: DownloadTrackSection[] = selectedChapterInfos.map((c, i) => {
+          const prefix = `${String(i + 1).padStart(2, '0')}. `
+          const cleanTitle = c.title.replace(/^\d+[\s\-–—.:)]+/, '').trim()
+          const trackTitle = `${prefix}${cleanTitle}`
+          const duration = Math.max(1, Math.round(c.endTime - c.startTime))
+          return {
+            title: trackTitle,
+            startTime: c.startTime,
+            endTime: c.endTime,
+            duration
+          }
+        })
 
-        // Add numerical prefix to chapter title for sorting, e.g. "001 - Chapter Title"
-        const prefix = chapterIndex >= 0 ? `${String(chapterIndex + 1).padStart(3, '0')} - ` : ''
-        const chapterRawTitle = chapterInfo?.title || chapterKey
-        const numberedChapterTitle = `${prefix}${chapterRawTitle}`
-
-        // Use full title for UI list, but short title for filename if in subfolder
-        const displayTitle = chapterInfo
-          ? `${customTitle || meta.title} - ${numberedChapterTitle}`
-          : customTitle || meta.title
-
-        // If saving to album folder (multi or existing folder), use short chapter title for filename
-        const chapterTitle = useAlbumFolder ? numberedChapterTitle : displayTitle
-
-        const chapterOptions: DownloadOptions = {
-          ...baseOptions,
-          outputPath: finalOutputPath,
-          selectedChapters: [chapterKey],
-          customTitle: chapterTitle,
-          expectedDuration: chapterDuration
+        const initialPlaylistProgress: PlaylistProgress = {
+          current: 1,
+          total: trackSections.length,
+          items: trackSections.map((t, idx) => ({
+            id: String(idx + 1),
+            title: t.title,
+            duration: t.duration,
+            status: 'pending' as const,
+            progress: 0
+          }))
         }
 
-        const res = await window.api.startDownload(meta.url, chapterOptions, undefined, {
-          ...meta,
-          title: displayTitle,
-          thumbnail: customThumbnail || meta.thumbnail
-        })
+        const albumOptions: DownloadOptions = {
+          ...baseOptions,
+          outputPath: albumFolderPath,
+          trackSections
+        }
+
+        setStep('downloading')
+        const res = await window.api.startDownload(
+          meta.url,
+          albumOptions,
+          initialPlaylistProgress,
+          {
+            ...meta,
+            title: customTitle || meta.title,
+            thumbnail: customThumbnail || meta.thumbnail
+          }
+        )
         if (res.success && res.data) {
           addJob({
             id: res.data,
             url: meta.url,
             metadata: {
               ...meta,
-              title: displayTitle,
+              title: customTitle || meta.title,
               thumbnail: customThumbnail || meta.thumbnail
             },
-            options: chapterOptions,
+            options: albumOptions,
             status: 'pending',
             progress: 0,
-            createdAt: Date.now()
+            createdAt: Date.now(),
+            playlistProgress: initialPlaylistProgress
           })
+          if (onGoToQueue) onGoToQueue()
+          resetDownloader()
+          setStep('idle')
+        } else {
+          setError(res.error || 'Failed to start download')
+          setStep('preview')
         }
+        return
       }
-
-      if (onGoToQueue) onGoToQueue()
-      resetDownloader()
-      setStep('idle')
-      return
     }
 
     // If we have detected tracks from silence/text splitting, download as a single grouped album job
