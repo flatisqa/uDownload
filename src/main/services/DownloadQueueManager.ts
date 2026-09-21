@@ -967,198 +967,252 @@ export class DownloadQueueManager extends EventEmitter {
       const masterAudioPath = path.join(outputPath, foundMaster)
       const masterExt = path.extname(foundMaster).slice(1) || ext
 
-      // Stage 2: Instant local slicing with FFmpeg
-      entry.phase = 'converting'
-      if (entry.playlistProgress) {
-        entry.playlistProgress.current = totalTracks
-        for (const item of entry.playlistProgress.items) {
-          item.status = 'done'
-          item.progress = 100
-        }
-      }
-      this.emit('progress', {
-        id: job.id,
-        status: 'converting',
-        progress: 99.9,
-        playlistProgress: entry.playlistProgress
-      })
-
-      // Fetch / extract cover art into cover.jpg
-      const coverBuffer = await this.ensureFolderCoverArt(outputPath, job, ffmpeg)
-      const coverJpgPath = path.join(outputPath, 'cover.jpg')
-
-      // Generate VorbisComment picture block for Opus / FLAC if cover exists
-      let vorbisPictureBase64: string | null = null
-      if (coverBuffer && (masterExt === 'opus' || masterExt === 'flac' || masterExt === 'ogg')) {
-        try {
-          let mime = 'image/jpeg'
-          if (
-            coverBuffer[0] === 0x89 &&
-            coverBuffer[1] === 0x50 &&
-            coverBuffer[2] === 0x4e &&
-            coverBuffer[3] === 0x47
-          ) {
-            mime = 'image/png'
+      try {
+        // Stage 2: Instant local slicing with FFmpeg
+        entry.phase = 'converting'
+        if (entry.playlistProgress) {
+          entry.playlistProgress.current = totalTracks
+          for (const item of entry.playlistProgress.items) {
+            item.status = 'done'
+            item.progress = 100
           }
-          const mimeBuf = Buffer.from(mime, 'ascii')
-          const buf = Buffer.alloc(32 + mimeBuf.length + coverBuffer.length)
-          let offset = 0
-          buf.writeUInt32BE(3, offset)
-          offset += 4 // Cover (front)
-          buf.writeUInt32BE(mimeBuf.length, offset)
-          offset += 4
-          mimeBuf.copy(buf, offset)
-          offset += mimeBuf.length
-          buf.writeUInt32BE(0, offset)
-          offset += 4 // desc length
-          buf.writeUInt32BE(0, offset)
-          offset += 4 // width
-          buf.writeUInt32BE(0, offset)
-          offset += 4 // height
-          buf.writeUInt32BE(24, offset)
-          offset += 4 // color depth
-          buf.writeUInt32BE(0, offset)
-          offset += 4 // indexed colors
-          buf.writeUInt32BE(coverBuffer.length, offset)
-          offset += 4
-          coverBuffer.copy(buf, offset)
-          vorbisPictureBase64 = buf.toString('base64')
-        } catch {
-          // ignore Vorbis picture block creation error
         }
-      }
+        this.emit('progress', {
+          id: job.id,
+          status: 'converting',
+          progress: 99.9,
+          playlistProgress: entry.playlistProgress
+        })
 
-      const albumTitle = job.metadata?.title || ''
-      const artistName = job.options.customArtist || job.metadata?.author || ''
+        // Fetch / extract cover art into cover.jpg
+        const coverBuffer = await this.ensureFolderCoverArt(outputPath, job, ffmpeg)
+        const coverJpgPath = path.join(outputPath, 'cover.jpg')
 
-      for (let i = 0; i < totalTracks; i++) {
-        if (entry.isCancelled) break
+        // Generate VorbisComment picture block for Opus / FLAC if cover exists
+        let vorbisPictureBase64: string | null = null
+        if (coverBuffer && (masterExt === 'opus' || masterExt === 'flac' || masterExt === 'ogg')) {
+          try {
+            let mime = 'image/jpeg'
+            if (
+              coverBuffer[0] === 0x89 &&
+              coverBuffer[1] === 0x50 &&
+              coverBuffer[2] === 0x4e &&
+              coverBuffer[3] === 0x47
+            ) {
+              mime = 'image/png'
+            }
+            const mimeBuf = Buffer.from(mime, 'ascii')
+            const buf = Buffer.alloc(32 + mimeBuf.length + coverBuffer.length)
+            let offset = 0
+            buf.writeUInt32BE(3, offset)
+            offset += 4 // Cover (front)
+            buf.writeUInt32BE(mimeBuf.length, offset)
+            offset += 4
+            mimeBuf.copy(buf, offset)
+            offset += mimeBuf.length
+            buf.writeUInt32BE(0, offset)
+            offset += 4 // desc length
+            buf.writeUInt32BE(0, offset)
+            offset += 4 // width
+            buf.writeUInt32BE(0, offset)
+            offset += 4 // height
+            buf.writeUInt32BE(24, offset)
+            offset += 4 // color depth
+            buf.writeUInt32BE(0, offset)
+            offset += 4 // indexed colors
+            buf.writeUInt32BE(coverBuffer.length, offset)
+            offset += 4
+            coverBuffer.copy(buf, offset)
+            vorbisPictureBase64 = buf.toString('base64')
+          } catch {
+            // ignore Vorbis picture block creation error
+          }
+        }
 
-        const track = trackSections[i]
-        const cleanTrackTitle = track.title.replace(/[\\/:*?"<>|]/g, '_').trim()
-        const trackOutPath = path.join(outputPath, `${cleanTrackTitle}.${masterExt}`)
-        destinations.push(trackOutPath)
+        // Write VorbisComment picture to a temporary FFMETADATA file to avoid Linux E2BIG (128KB CLI arg limit)
+        let vorbisMetaFilePath: string | null = null
+        if (vorbisPictureBase64) {
+          try {
+            vorbisMetaFilePath = path.join(outputPath, `__meta_${job.id}.txt`)
+            fs.writeFileSync(
+              vorbisMetaFilePath,
+              `;FFMETADATA1\nMETADATA_BLOCK_PICTURE=${vorbisPictureBase64}\n`
+            )
+          } catch (e) {
+            console.warn('[DownloadQueueManager] Failed to write vorbis metadata file:', e)
+            vorbisMetaFilePath = null
+          }
+        }
 
-        const ffmpegArgs = [
-          '-y',
-          '-ss',
-          String(track.startTime),
-          '-to',
-          String(track.endTime),
-          '-i',
-          masterAudioPath
-        ]
+        const albumTitle = job.metadata?.title || ''
+        const artistName = job.options.customArtist || job.metadata?.author || ''
+        const isOpusOrOgg = masterExt === 'opus' || masterExt === 'ogg'
+        const isFlac = masterExt === 'flac'
 
-        const hasMp3OrM4aCover =
-          fs.existsSync(coverJpgPath) && (masterExt === 'mp3' || masterExt === 'm4a')
+        for (let i = 0; i < totalTracks; i++) {
+          if (entry.isCancelled) break
 
-        if (hasMp3OrM4aCover) {
-          ffmpegArgs.push('-i', coverJpgPath, '-map', '0:a', '-map', '1:v')
-          if (masterExt === 'mp3') {
+          const track = trackSections[i]
+          const cleanTrackTitle = track.title.replace(/[\\/:*?"<>|]/g, '_').trim()
+          const trackOutPath = path.join(outputPath, `${cleanTrackTitle}.${masterExt}`)
+          destinations.push(trackOutPath)
+
+          const ffmpegArgs = [
+            '-nostdin',
+            '-y',
+            '-ss',
+            String(track.startTime),
+            '-to',
+            String(track.endTime),
+            '-i',
+            masterAudioPath
+          ]
+
+          const hasMp3OrM4aCover =
+            fs.existsSync(coverJpgPath) && (masterExt === 'mp3' || masterExt === 'm4a')
+
+          if (hasMp3OrM4aCover) {
+            ffmpegArgs.push('-i', coverJpgPath, '-map', '0:a', '-map', '1:v')
+            if (masterExt === 'mp3') {
+              ffmpegArgs.push(
+                '-c',
+                'copy',
+                '-id3v2_version',
+                '3',
+                '-metadata:s:v',
+                'title=Album cover',
+                '-metadata:s:v',
+                'comment=Cover (front)'
+              )
+            } else {
+              ffmpegArgs.push('-c', 'copy', '-disposition:v:0', 'attached_pic')
+            }
+          } else if (vorbisMetaFilePath && (isOpusOrOgg || isFlac)) {
+            // Supply metadata from file to bypass CLI argument length limits
             ffmpegArgs.push(
+              '-i',
+              vorbisMetaFilePath,
+              '-map',
+              '0:a',
+              '-map_metadata',
+              '1',
               '-c',
-              'copy',
-              '-id3v2_version',
-              '3',
-              '-metadata:s:v',
-              'title=Album cover',
-              '-metadata:s:v',
-              'comment=Cover (front)'
+              'copy'
             )
           } else {
-            ffmpegArgs.push('-c', 'copy', '-disposition:v:0', 'attached_pic')
+            if (isOpusOrOgg) {
+              ffmpegArgs.push('-map', '0:a')
+            }
+            ffmpegArgs.push('-c', 'copy')
           }
-        } else {
-          ffmpegArgs.push('-c', 'copy')
-        }
 
-        ffmpegArgs.push(
-          '-metadata',
-          `title=${track.title}`,
-          '-metadata:s:a:0',
-          `title=${track.title}`,
-          '-metadata:s:0',
-          `title=${track.title}`,
-          '-metadata',
-          `track=${i + 1}/${totalTracks}`,
-          '-metadata:s:a:0',
-          `track=${i + 1}/${totalTracks}`,
-          '-metadata:s:0',
-          `track=${i + 1}/${totalTracks}`
-        )
-
-        if (albumTitle) {
           ffmpegArgs.push(
             '-metadata',
-            `album=${albumTitle}`,
+            `title=${track.title}`,
             '-metadata:s:a:0',
-            `album=${albumTitle}`
-          )
-        }
-
-        if (artistName) {
-          ffmpegArgs.push(
+            `title=${track.title}`,
+            '-metadata:s:0',
+            `title=${track.title}`,
             '-metadata',
-            `artist=${artistName}`,
+            `track=${i + 1}/${totalTracks}`,
             '-metadata:s:a:0',
-            `artist=${artistName}`
+            `track=${i + 1}/${totalTracks}`,
+            '-metadata:s:0',
+            `track=${i + 1}/${totalTracks}`
           )
+
+          if (albumTitle) {
+            ffmpegArgs.push(
+              '-metadata',
+              `album=${albumTitle}`,
+              '-metadata:s:a:0',
+              `album=${albumTitle}`
+            )
+          }
+
+          if (artistName) {
+            ffmpegArgs.push(
+              '-metadata',
+              `artist=${artistName}`,
+              '-metadata:s:a:0',
+              `artist=${artistName}`
+            )
+          }
+
+          ffmpegArgs.push(trackOutPath)
+
+          await new Promise<void>((resolve) => {
+            try {
+              const ff = spawn(ffmpeg, ffmpegArgs, { stdio: ['ignore', 'ignore', 'pipe'] })
+              entry.process = ff
+              // Drain stderr to avoid OS buffer deadlocks
+              ff.stderr?.on('data', () => {})
+              ff.on('close', () => resolve())
+              ff.on('error', (err) => {
+                console.warn('[DownloadQueueManager] FFmpeg track slice error:', err)
+                resolve()
+              })
+            } catch (spawnErr) {
+              console.error('[DownloadQueueManager] FFmpeg spawn error:', spawnErr)
+              resolve()
+            }
+          })
         }
 
-        if (vorbisPictureBase64) {
-          ffmpegArgs.push(
-            '-metadata',
-            `METADATA_BLOCK_PICTURE=${vorbisPictureBase64}`,
-            '-metadata:s:a:0',
-            `METADATA_BLOCK_PICTURE=${vorbisPictureBase64}`
-          )
+        // Clean up temporary Vorbis metadata file
+        if (vorbisMetaFilePath && fs.existsSync(vorbisMetaFilePath)) {
+          try {
+            fs.unlinkSync(vorbisMetaFilePath)
+          } catch {
+            // Ignore deletion error
+          }
         }
 
-        ffmpegArgs.push(trackOutPath)
-
-        await new Promise<void>((resolve) => {
-          const ff = spawn(ffmpeg, ffmpegArgs)
-          entry.process = ff
-          ff.on('close', () => resolve())
-          ff.on('error', () => resolve())
-        })
-      }
-
-      // Clean up master audio file
-      try {
-        if (fs.existsSync(masterAudioPath)) {
-          fs.unlinkSync(masterAudioPath)
-        }
-      } catch {
-        // Ignore deletion error
-      }
-
-      if (entry.isCancelled) return
-
-      this.active.delete(job.id)
-
-      let totalBytes = 0
-      for (const dest of destinations) {
+        // Clean up master audio file
         try {
-          if (fs.existsSync(dest)) totalBytes += fs.statSync(dest).size
+          if (fs.existsSync(masterAudioPath)) {
+            fs.unlinkSync(masterAudioPath)
+          }
         } catch {
-          // Ignore file access error
+          // Ignore deletion error
         }
-      }
-      const finalSize = totalBytes > 0 ? this.formatBytes(totalBytes) : undefined
-      const finalFilePath =
-        destinations.length > 0 ? destinations[destinations.length - 1] : undefined
 
-      this.emit('completed', {
-        id: job.id,
-        status: 'done',
-        progress: 100,
-        outputPath: job.outputPath,
-        finalFilePath,
-        size: finalSize,
-        playlistProgress: entry.playlistProgress
-      })
-      this.tick()
+        if (entry.isCancelled) return
+
+        this.active.delete(job.id)
+
+        let totalBytes = 0
+        for (const dest of destinations) {
+          try {
+            if (fs.existsSync(dest)) totalBytes += fs.statSync(dest).size
+          } catch {
+            // Ignore file access error
+          }
+        }
+        const finalSize = totalBytes > 0 ? this.formatBytes(totalBytes) : undefined
+        const finalFilePath =
+          destinations.length > 0 ? destinations[destinations.length - 1] : undefined
+
+        this.emit('completed', {
+          id: job.id,
+          status: 'done',
+          progress: 100,
+          outputPath: job.outputPath,
+          finalFilePath,
+          size: finalSize,
+          playlistProgress: entry.playlistProgress
+        })
+        this.tick()
+      } catch (err) {
+        console.error('[DownloadQueueManager] Error during post-processing multitrack:', err)
+        this.active.delete(job.id)
+        this.emit('error', {
+          id: job.id,
+          status: 'error',
+          error: `Ошибка нарезки треков: ${(err as Error).message || err}`
+        })
+        this.tick()
+      }
     })
 
     proc.on('error', (err) => {
