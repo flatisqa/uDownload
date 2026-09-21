@@ -470,7 +470,7 @@ export default function DownloaderPage({
 
           <FormatConfigPanel />
           <PlaylistPanel />
-          <ChaptersPanel />
+          <ChaptersPanel onDownload={() => handleDownload(false)} />
           <TimingPanel />
           <TrackSplitPanel onDownloadTracks={() => handleDownload(false)} />
         </div>
