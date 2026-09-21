@@ -61,8 +61,24 @@ export const translations = {
     noSilenceDetected:
       'No pauses detected. Try adjusting silence threshold or paste tracklist as text.',
     noiseThreshold: 'Silence threshold:',
+    noiseThresholdTip:
+      'Audio level treated as silence (-25 dB for loud/live audio, -40 dB for dead silence)',
     minSilenceDuration: 'Min silence duration:',
+    minSilenceDurationTip: 'Minimum silence duration to trigger a split (1.0 to 3.0s)',
     minTrackDurationLabel: 'Min track length:',
+    minTrackDurationTip: 'Sections shorter than this are merged into adjacent tracks',
+    trackSplitHelpBtn: 'Help & Guide',
+    trackSplitHelpTitle: 'Track Splitting Guide',
+    trackSplitHelpNoise:
+      'Sound level considered as silence. Raise to -28 / -25 dB for noisy/live recordings. Lower to -35 / -40 dB for clean studio tracks so quiet musical moments are not cut.',
+    trackSplitHelpSilence:
+      'How long silence must last to split tracks. Lower (1.0s) finds more tracks; higher (2.0–3.0s) prevents splitting during dramatic pauses within a song.',
+    trackSplitHelpMinLen:
+      'Protection against tiny cut-offs, DJ chatter, and short intros.',
+    trackSplitHelpTextList:
+      'If timestamps are provided in the video description or comments, pasting them creates tracks instantly with original song titles without scanning audio.',
+    trackSplitQuickTip:
+      '💡 Tip: For live concerts with crowd noise, use -28 dB. If the description has timestamps, use "Paste Tracklist Text" for instant accurate titles.',
     mergeWithPrev: 'Merge with previous track',
     mergeWithNext: 'Merge with next track',
     deleteTrackBtn: 'Delete track',
@@ -282,8 +298,24 @@ export const translations = {
     noSilenceDetected:
       'Пауз не обнаружено. Попробуйте изменить порог тишины или вставить треклист текстом.',
     noiseThreshold: 'Порог тишины:',
+    noiseThresholdTip:
+      'Уровень звука, считающийся тишиной (-25 dB для шумных/живых записей, -40 dB для идеальной тишины)',
     minSilenceDuration: 'Мин. пауза:',
+    minSilenceDurationTip: 'Минимальная длительность тишины для разрезания (1.0–3.0 сек)',
     minTrackDurationLabel: 'Мин. длина трека:',
+    minTrackDurationTip: 'Отрезки короче этого времени объединяются с соседними треками',
+    trackSplitHelpBtn: 'Инструкция и подсказки',
+    trackSplitHelpTitle: 'Как работает разбивка на треки',
+    trackSplitHelpNoise:
+      'Уровень звука, ниже которого звук считается тишиной. Сделайте выше (-28...-25 dB) для записей с фоновым шумом или аплодисментами. Сделайте ниже (-35...-40 dB) для чистых студийных треков, чтобы не резать тихие партии музыки.',
+    trackSplitHelpSilence:
+      'Сколько секунд должна длиться тишина. Уменьшите (1.0 сек), чтобы найти больше пауз; увеличьте (2.0–3.0 сек), чтобы не разрезать песни во время коротких пауз.',
+    trackSplitHelpMinLen:
+      'Защита от мелких обрывков, заставок и коротких реплик.',
+    trackSplitHelpTextList:
+      'Если в описании видео или комментарии есть список таймкодов (00:00 Название), нажмите «Вставить треклист текстом» — это нарежет треки мгновенно сразу с точными названиями.',
+    trackSplitQuickTip:
+      '💡 Совет: Для концертов с шумом зала выберите -28 dB. Если под видео есть таймкоды песен, быстрее всего вставить их кнопкой «Вставить треклист текстом».',
     mergeWithPrev: 'Приклеить к предыдущему треку',
     mergeWithNext: 'Приклеить к следующему треку',
     deleteTrackBtn: 'Удалить трек',

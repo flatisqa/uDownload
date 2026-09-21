@@ -2,7 +2,11 @@ import React from 'react'
 import { useTranslation } from '../../i18n'
 import { useStore } from '../../store'
 
-export const ChaptersPanel: React.FC = () => {
+interface ChaptersPanelProps {
+  onDownload?: () => void
+}
+
+export const ChaptersPanel: React.FC<ChaptersPanelProps> = ({ onDownload }) => {
   const settings = useStore((s) => s.settings)
   const meta = useStore((s) => s.meta)
   const chapterMode = useStore((s) => s.chapterMode)
@@ -122,6 +126,34 @@ export const ChaptersPanel: React.FC = () => {
           </label>
         ))}
       </div>
+
+      {chapterMode === 'selected' && selectedChapters.length > 0 && onDownload && (
+        <div
+          className="flex items-center justify-end"
+          style={{
+            marginTop: 14,
+            paddingTop: 12,
+            borderTop: '1px solid rgba(255, 255, 255, 0.06)'
+          }}
+        >
+          <button
+            className="btn btn-primary"
+            onClick={onDownload}
+            style={{
+              padding: '8px 18px',
+              fontSize: 13,
+              fontWeight: 600,
+              gap: 8,
+              cursor: 'pointer'
+            }}
+          >
+            <span style={{ fontSize: 14 }}>⬇</span>
+            <span>
+              {t('downloadSelectedTracks')} ({selectedChapters.length})
+            </span>
+          </button>
+        </div>
+      )}
     </div>
   )
 }

@@ -506,12 +506,11 @@ export async function checkAndUpdate(
         (savedVer === latestVer ||
           (currentStandalone &&
             (currentStandalone === latestVer ||
-              currentStandalone.startsWith('9.') ||
-              currentStandalone.includes('9.0.1'))))
+              currentStandalone.startsWith(`${latestVer} `) ||
+              currentStandalone.startsWith(`${latestVer}(`))))
 
       if (isAlreadyUpToDate) {
-        store.set('installedFfmpegVersion', latestVer)
-        results.push(`FFmpeg (автономный): актуален (${latestVer})`)
+        results.push(`FFmpeg (автономный): актуален (${currentStandalone || latestVer})`)
       } else {
         if (onProgress) {
           onProgress({
