@@ -25,6 +25,7 @@ export const TrackSplitPanel: React.FC<TrackSplitPanelProps> = ({ onDownloadTrac
   const [scanProgress, setScanProgress] = useState<TrackDetectProgress | null>(null)
   const [scanError, setScanError] = useState<string | null>(null)
   const [showSettings, setShowSettings] = useState(false)
+  const [showHelp, setShowHelp] = useState(false)
   const [showTextModal, setShowTextModal] = useState(false)
   const [tracklistText, setTracklistText] = useState('')
 
@@ -127,82 +128,201 @@ export const TrackSplitPanel: React.FC<TrackSplitPanelProps> = ({ onDownloadTrac
       {/* Header */}
       <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
         <p className="heading-sm">{t('trackSplitTitle')}</p>
-        <button
-          className="btn btn-ghost"
-          onClick={() => setShowSettings(!showSettings)}
-          style={{ padding: '4px 8px', fontSize: 12, opacity: 0.8 }}
-          title={t('noiseThreshold')}
-        >
-          ⚙️
-        </button>
+        <div className="flex items-center gap-6">
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => setShowHelp(!showHelp)}
+            style={{
+              padding: '4px 8px',
+              fontSize: 12,
+              opacity: showHelp ? 1 : 0.75,
+              color: showHelp ? 'var(--accent)' : 'inherit'
+            }}
+            title={t('trackSplitHelpBtn')}
+          >
+            ℹ️
+          </button>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => setShowSettings(!showSettings)}
+            style={{
+              padding: '4px 8px',
+              fontSize: 12,
+              opacity: showSettings ? 1 : 0.75,
+              color: showSettings ? 'var(--accent)' : 'inherit'
+            }}
+            title={t('noiseThreshold')}
+          >
+            ⚙️
+          </button>
+        </div>
       </div>
       <p style={{ color: 'var(--text-muted)', fontSize: 11, marginBottom: 14 }}>
         {t('trackSplitDesc')}
       </p>
 
+      {/* Help Card */}
+      {showHelp && (
+        <div
+          style={{
+            padding: '12px 14px',
+            background: 'rgba(0, 229, 255, 0.05)',
+            border: '1px solid rgba(0, 229, 255, 0.25)',
+            borderRadius: 8,
+            marginBottom: 14,
+            fontSize: 12,
+            lineHeight: 1.55
+          }}
+        >
+          <div
+            className="flex items-center justify-between"
+            style={{ marginBottom: 8, color: 'var(--accent)', fontWeight: 600, fontSize: 12 }}
+          >
+            <span>📖 {t('trackSplitHelpTitle')}</span>
+            <button
+              type="button"
+              className="btn btn-ghost"
+              style={{ padding: '0 4px', fontSize: 11, color: 'var(--text-muted)' }}
+              onClick={() => setShowHelp(false)}
+            >
+              ✕
+            </button>
+          </div>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 6,
+              color: 'var(--text-secondary)'
+            }}
+          >
+            <div>
+              <strong style={{ color: 'var(--text-primary)' }}>• {t('noiseThreshold')}</strong>{' '}
+              {t('trackSplitHelpNoise')}
+            </div>
+            <div>
+              <strong style={{ color: 'var(--text-primary)' }}>• {t('minSilenceDuration')}</strong>{' '}
+              {t('trackSplitHelpSilence')}
+            </div>
+            <div>
+              <strong style={{ color: 'var(--text-primary)' }}>• {t('minTrackDurationLabel')}</strong>{' '}
+              {t('trackSplitHelpMinLen')}
+            </div>
+            <div
+              style={{
+                marginTop: 2,
+                paddingTop: 6,
+                borderTop: '1px solid rgba(255, 255, 255, 0.08)',
+                color: 'var(--accent)'
+              }}
+            >
+              <strong>📋 {t('pasteTracklistBtn')}:</strong> {t('trackSplitHelpTextList')}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Sensitivity settings accordion */}
       {showSettings && (
         <div
           style={{
-            padding: 12,
+            padding: 14,
             background: 'var(--bg-secondary)',
             borderRadius: 8,
             marginBottom: 16,
             display: 'flex',
-            gap: 16,
-            flexWrap: 'wrap',
-            alignItems: 'center'
+            flexDirection: 'column',
+            gap: 12
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <label style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-              {t('noiseThreshold')}
-            </label>
-            <select
-              className="input"
-              style={{ width: 100, padding: '4px 8px', fontSize: 12 }}
-              value={noiseLevel}
-              onChange={(e) => setNoiseLevel(Number(e.target.value))}
+          <div
+            style={{
+              display: 'flex',
+              gap: 16,
+              flexWrap: 'wrap',
+              alignItems: 'center'
+            }}
+          >
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+              title={t('noiseThresholdTip')}
             >
-              <option value={-25}>-25 dB (громко)</option>
-              <option value={-30}>-30 dB</option>
-              <option value={-32}>-32 dB (стандарт)</option>
-              <option value={-35}>-35 dB</option>
-              <option value={-40}>-40 dB (тихо)</option>
-            </select>
+              <label style={{ fontSize: 11, color: 'var(--text-secondary)', cursor: 'help' }}>
+                {t('noiseThreshold')} <span style={{ opacity: 0.6 }}>ⓘ</span>
+              </label>
+              <select
+                className="input"
+                style={{ width: 175, padding: '4px 8px', fontSize: 12 }}
+                value={noiseLevel}
+                onChange={(e) => setNoiseLevel(Number(e.target.value))}
+              >
+                <option value={-16}>-16 dB (громкий фон)</option>
+                <option value={-18}>-18 dB (эмбиент / пэд)</option>
+                <option value={-20}>-20 dB (гул / подложка)</option>
+                <option value={-22}>-22 dB</option>
+                <option value={-25}>-25 dB (шум / зал)</option>
+                <option value={-28}>-28 dB</option>
+                <option value={-30}>-30 dB</option>
+                <option value={-32}>-32 dB (стандарт)</option>
+                <option value={-35}>-35 dB</option>
+                <option value={-40}>-40 dB (тихо)</option>
+              </select>
+            </div>
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+              title={t('minSilenceDurationTip')}
+            >
+              <label style={{ fontSize: 11, color: 'var(--text-secondary)', cursor: 'help' }}>
+                {t('minSilenceDuration')} <span style={{ opacity: 0.6 }}>ⓘ</span>
+              </label>
+              <select
+                className="input"
+                style={{ width: 120, padding: '4px 8px', fontSize: 12 }}
+                value={minSilenceDuration}
+                onChange={(e) => setMinSilenceDuration(Number(e.target.value))}
+              >
+                <option value={0.3}>0.3 сек</option>
+                <option value={0.5}>0.5 сек</option>
+                <option value={0.8}>0.8 сек</option>
+                <option value={1.0}>1.0 сек</option>
+                <option value={1.5}>1.5 сек (стандарт)</option>
+                <option value={2.0}>2.0 сек</option>
+                <option value={3.0}>3.0 сек</option>
+              </select>
+            </div>
+            <div
+              style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+              title={t('minTrackDurationTip')}
+            >
+              <label style={{ fontSize: 11, color: 'var(--text-secondary)', cursor: 'help' }}>
+                {t('minTrackDurationLabel')} <span style={{ opacity: 0.6 }}>ⓘ</span>
+              </label>
+              <select
+                className="input"
+                style={{ width: 145, padding: '4px 8px', fontSize: 12 }}
+                value={minTrackDuration}
+                onChange={(e) => setMinTrackDuration(Number(e.target.value))}
+              >
+                <option value={30}>30 сек</option>
+                <option value={45}>45 сек</option>
+                <option value={60}>60 сек (стандарт)</option>
+                <option value={90}>90 сек</option>
+                <option value={120}>2 мин</option>
+              </select>
+            </div>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <label style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-              {t('minSilenceDuration')}
-            </label>
-            <select
-              className="input"
-              style={{ width: 90, padding: '4px 8px', fontSize: 12 }}
-              value={minSilenceDuration}
-              onChange={(e) => setMinSilenceDuration(Number(e.target.value))}
-            >
-              <option value={1.0}>1.0 сек</option>
-              <option value={1.5}>1.5 сек</option>
-              <option value={2.0}>2.0 сек</option>
-              <option value={3.0}>3.0 сек</option>
-            </select>
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <label style={{ fontSize: 11, color: 'var(--text-secondary)' }}>
-              {t('minTrackDurationLabel')}
-            </label>
-            <select
-              className="input"
-              style={{ width: 100, padding: '4px 8px', fontSize: 12 }}
-              value={minTrackDuration}
-              onChange={(e) => setMinTrackDuration(Number(e.target.value))}
-            >
-              <option value={30}>30 сек</option>
-              <option value={45}>45 сек</option>
-              <option value={60}>60 сек (стандарт)</option>
-              <option value={90}>90 сек</option>
-              <option value={120}>2 мин</option>
-            </select>
+          <div
+            style={{
+              fontSize: 11,
+              color: 'var(--text-muted)',
+              borderTop: '1px solid rgba(255, 255, 255, 0.05)',
+              paddingTop: 8,
+              lineHeight: 1.4
+            }}
+          >
+            {t('trackSplitQuickTip')}
           </div>
         </div>
       )}
