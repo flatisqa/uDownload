@@ -149,12 +149,22 @@ export default function DownloaderPage({
     const albumFolderPath = baseOutputPath
       ? `${baseOutputPath}/${albumFolderName}`
       : albumFolderName
-    const isMultiChapter = chapterMode === 'selected' && selectedChapters.length > 0
+    const isMultiChapter = chapterMode === 'selected' && selectedChapters.length > 1
     const selectedDetectedTracks = detectedTracks.filter((t) => t.selected)
+    const isMultiDetected = selectedDetectedTracks.length > 1
 
     if (!force) {
-      const isFolderCheck = isPlaylist || isMultiChapter || selectedDetectedTracks.length > 1
-      const titleToCheck = isFolderCheck ? albumFolderName : customTitle || meta.title
+      const isFolderCheck = isPlaylist || isMultiChapter || isMultiDetected
+      const singleTrackTitle =
+        chapterMode === 'selected' && selectedChapters.length === 1
+          ? meta.chapters
+              ?.find((c) => selectedChapters.includes(`${c.startTime}-${c.endTime}`))
+              ?.title.replace(/^\d+[\s\-–—.:)]+/, '')
+              .trim()
+          : selectedDetectedTracks.length === 1
+            ? selectedDetectedTracks[0].title.replace(/^\d+[\s\-–—.:)]+/, '').trim()
+            : customTitle || meta.title
+      const titleToCheck = isFolderCheck ? albumFolderName : singleTrackTitle || customTitle || meta.title
       try {
         const conflictCheck = await window.api.checkConflict(
           baseOutputPath,
@@ -199,14 +209,7 @@ export default function DownloaderPage({
       customDescription: customDescription.trim() || undefined
     }
 
-    // For single chapter: check if album folder already exists (from previous chapter downloads)
-    const albumFolderExists =
-      !isMultiChapter && selectedChapters.length === 1
-        ? await window.api.pathExists(albumFolderPath)
-        : false
-
-    const useAlbumFolder = isPlaylist || isMultiChapter || albumFolderExists
-    const finalOutputPath = useAlbumFolder ? albumFolderPath : baseOptions.outputPath
+    const finalOutputPath = isPlaylist ? albumFolderPath : baseOptions.outputPath
 
     // If we have manual chapter selections AND mode is 'selected', download as a single grouped album job
     if (chapterMode === 'selected' && selectedChapters.length > 0 && !meta.isPlaylist) {
@@ -215,8 +218,9 @@ export default function DownloaderPage({
         .sort((a, b) => a.startTime - b.startTime)
 
       if (selectedChapterInfos.length > 0) {
+        const isSingleTrack = selectedChapterInfos.length === 1
         const trackSections: DownloadTrackSection[] = selectedChapterInfos.map((c, i) => {
-          const prefix = `${String(i + 1).padStart(2, '0')}. `
+          const prefix = isSingleTrack ? '' : `${String(i + 1).padStart(2, '0')}. `
           const cleanTitle = c.title.replace(/^\d+[\s\-–—.:)]+/, '').trim()
           const trackTitle = `${prefix}${cleanTitle}`
           const duration = Math.max(1, Math.round(c.endTime - c.startTime))
@@ -242,7 +246,7 @@ export default function DownloaderPage({
 
         const albumOptions: DownloadOptions = {
           ...baseOptions,
-          outputPath: albumFolderPath,
+          outputPath: isSingleTrack ? baseOutputPath : albumFolderPath,
           trackSections
         }
 
@@ -285,8 +289,9 @@ export default function DownloaderPage({
 
     // If we have detected tracks from silence/text splitting, download as a single grouped album job
     if (selectedDetectedTracks.length > 0 && !meta.isPlaylist) {
+      const isSingleTrack = selectedDetectedTracks.length === 1
       const trackSections: DownloadTrackSection[] = selectedDetectedTracks.map((track, i) => {
-        const prefix = `${String(i + 1).padStart(2, '0')}. `
+        const prefix = isSingleTrack ? '' : `${String(i + 1).padStart(2, '0')}. `
         const cleanTitle = track.title.replace(/^\d+[\s\-–—.:)]+/, '').trim()
         const trackTitle = `${prefix}${cleanTitle}`
         return {
@@ -311,7 +316,7 @@ export default function DownloaderPage({
 
       const multiTrackOptions: DownloadOptions = {
         ...baseOptions,
-        outputPath: albumFolderPath,
+        outputPath: isSingleTrack ? baseOutputPath : albumFolderPath,
         trackSections
       }
 

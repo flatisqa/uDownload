@@ -167,7 +167,7 @@ export class DownloadQueueManager extends EventEmitter {
     }
 
     const isDedicatedFolder = Boolean(
-      (job.options.trackSections && job.options.trackSections.length > 0) ||
+      (job.options.trackSections && job.options.trackSections.length > 1) ||
       (job.metadata?.isPlaylist && (job.playlistProgress?.items?.length ?? 0) > 1) ||
       (job.options.selectedPlaylistItems && job.options.selectedPlaylistItems.length > 1) ||
       (job.playlistProgress && job.playlistProgress.items.length > 1) ||
@@ -175,7 +175,7 @@ export class DownloadQueueManager extends EventEmitter {
     )
 
     if (isDedicatedFolder) {
-      this.ensureFolderCoverArt(outputPath, job, ffmpeg).catch(() => {})
+      this.ensureFolderCoverArt(outputPath, job, ffmpeg, true).catch(() => {})
     }
 
     const outputTemplate = path.join(outputPath, '%(title)s.%(ext)s')
@@ -534,7 +534,8 @@ export class DownloadQueueManager extends EventEmitter {
   private async ensureFolderCoverArt(
     outputPath: string,
     job: DownloadJob,
-    ffmpegBin: string
+    ffmpegBin: string,
+    saveCoverJpg = true
   ): Promise<Buffer | null> {
     try {
       if (!fs.existsSync(outputPath)) {
@@ -655,13 +656,13 @@ export class DownloadQueueManager extends EventEmitter {
           }
         }
 
-        // Save cover.jpg in the directory
-        if (!fs.existsSync(coverJpgPath)) {
+        // Save cover.jpg in the directory only if requested (e.g. dedicated album folder)
+        if (saveCoverJpg && !fs.existsSync(coverJpgPath)) {
           fs.writeFileSync(coverJpgPath, coverBuffer)
         }
 
         // On Linux (Ubuntu / GNOME Nautilus), set custom folder icon via gio
-        if (process.platform === 'linux' && fs.existsSync(coverJpgPath)) {
+        if (saveCoverJpg && process.platform === 'linux' && fs.existsSync(coverJpgPath)) {
           try {
             spawn('gio', [
               'set',
@@ -984,9 +985,26 @@ export class DownloadQueueManager extends EventEmitter {
           playlistProgress: entry.playlistProgress
         })
 
-        // Fetch / extract cover art into cover.jpg
-        const coverBuffer = await this.ensureFolderCoverArt(outputPath, job, ffmpeg)
+        const isSingleTrack = totalTracks === 1
+
+        // Fetch / extract cover art (only save permanent cover.jpg if dedicated album folder with >1 tracks)
+        const coverBuffer = await this.ensureFolderCoverArt(outputPath, job, ffmpeg, !isSingleTrack)
         const coverJpgPath = path.join(outputPath, 'cover.jpg')
+
+        // For MP3/M4A: if coverBuffer exists and cover.jpg was not saved to disk, write temporary file
+        let tempCoverJpgPath: string | null = null
+        if (coverBuffer && (masterExt === 'mp3' || masterExt === 'm4a')) {
+          if (fs.existsSync(coverJpgPath)) {
+            tempCoverJpgPath = coverJpgPath
+          } else {
+            try {
+              tempCoverJpgPath = path.join(outputPath, `__temp_cover_${job.id}.jpg`)
+              fs.writeFileSync(tempCoverJpgPath, coverBuffer)
+            } catch {
+              tempCoverJpgPath = null
+            }
+          }
+        }
 
         // Generate VorbisComment picture block for Opus / FLAC if cover exists
         let vorbisPictureBase64: string | null = null
@@ -1069,10 +1087,11 @@ export class DownloadQueueManager extends EventEmitter {
           ]
 
           const hasMp3OrM4aCover =
-            fs.existsSync(coverJpgPath) && (masterExt === 'mp3' || masterExt === 'm4a')
+            Boolean(tempCoverJpgPath && fs.existsSync(tempCoverJpgPath)) &&
+            (masterExt === 'mp3' || masterExt === 'm4a')
 
           if (hasMp3OrM4aCover) {
-            ffmpegArgs.push('-i', coverJpgPath, '-map', '0:a', '-map', '1:v')
+            ffmpegArgs.push('-i', tempCoverJpgPath!, '-map', '0:a', '-map', '1:v')
             if (masterExt === 'mp3') {
               ffmpegArgs.push(
                 '-c',
@@ -1163,6 +1182,19 @@ export class DownloadQueueManager extends EventEmitter {
         if (vorbisMetaFilePath && fs.existsSync(vorbisMetaFilePath)) {
           try {
             fs.unlinkSync(vorbisMetaFilePath)
+          } catch {
+            // Ignore deletion error
+          }
+        }
+
+        // Clean up temporary MP3/M4A cover file
+        if (
+          tempCoverJpgPath &&
+          tempCoverJpgPath !== coverJpgPath &&
+          fs.existsSync(tempCoverJpgPath)
+        ) {
+          try {
+            fs.unlinkSync(tempCoverJpgPath)
           } catch {
             // Ignore deletion error
           }
