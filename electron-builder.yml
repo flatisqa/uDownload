@@ -44,7 +44,7 @@ linux:
   target:
     - AppImage
     - deb
-  maintainer: electronjs.org
+  maintainer: Sergey <flatisqa@gmail.com>
   category: Utility
   icon: build/icon.png
 appImage:
