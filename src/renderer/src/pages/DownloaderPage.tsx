@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type {
   DownloadOptions,
   DownloadTrackSection,
@@ -125,10 +125,22 @@ export default function DownloaderPage({
     ]
   )
 
+  const lastAutoFetchedUrlRef = useRef<string>('')
+
   // Auto-fetch when URL in store changes (e.g. from Toast or external source)
   useEffect(() => {
-    if (url && step === 'idle' && !meta) {
-      handleFetch(url)
+    const trimmed = url?.trim() || ''
+    if (
+      trimmed &&
+      (trimmed.startsWith('http://') || trimmed.startsWith('https://')) &&
+      trimmed !== lastAutoFetchedUrlRef.current &&
+      step === 'idle' &&
+      !meta
+    ) {
+      lastAutoFetchedUrlRef.current = trimmed
+      handleFetch(trimmed)
+    } else if (!trimmed) {
+      lastAutoFetchedUrlRef.current = ''
     }
   }, [url, step, meta, handleFetch])
 

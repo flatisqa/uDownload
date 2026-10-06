@@ -1,6 +1,6 @@
 {
   "name": "uDowload",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "Modern video, audio, and album downloader for YouTube and 1000+ sites",
   "main": "./out/main/index.js",
   "author": "Sergey <flatisqa@gmail.com>",

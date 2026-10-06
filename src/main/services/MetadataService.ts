@@ -85,7 +85,10 @@ export async function fetchMetadata(
   args.push(url)
 
   try {
-    const { stdout } = await execFileAsync(bin, args)
+    const { stdout } = await execFileAsync(bin, args, {
+      maxBuffer: 50 * 1024 * 1024,
+      timeout: 60000
+    })
     return parseMetadataResponse(stdout, url)
   } catch (error: unknown) {
     // Check for YouTube n-challenge error
@@ -98,6 +101,9 @@ export async function fetchMetadata(
       throw new Error(
         'YouTube protection detected. Please update yt-dlp to the latest version in Settings → Components → Check for updates'
       )
+    }
+    if (execError.stderr && execError.stderr.trim()) {
+      throw new Error(execError.stderr.trim())
     }
     throw error
   }
