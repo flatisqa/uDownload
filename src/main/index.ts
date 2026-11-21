@@ -9,7 +9,7 @@ if (process.platform === 'linux') {
 }
 
 import { registerIpcHandlers } from './ipc/handlers'
-import { getStatus, downloadYtdlp } from './services/BinaryManager'
+import { getStatus, downloadYtdlp, checkAndUpdate } from './services/BinaryManager'
 import { clipboardWatcher } from './services/ClipboardWatcher'
 import Store from 'electron-store'
 import windowStateKeeper from 'electron-window-state'
@@ -87,10 +87,10 @@ app.whenReady().then(async () => {
   // Register all IPC handlers
   registerIpcHandlers(mainWindow)
 
-  // Check and auto-download yt-dlp if missing
-  const binaryStatus = await getStatus()
-  if (!binaryStatus.ytdlp) {
-    mainWindow.webContents.once('did-finish-load', async () => {
+  // Check and auto-download yt-dlp if missing, or auto-check updates on startup
+  mainWindow.webContents.once('did-finish-load', async () => {
+    const binaryStatus = await getStatus()
+    if (!binaryStatus.ytdlp) {
       mainWindow.webContents.send('download:progress', {
         id: '__init__',
         status: 'fetching_meta',
@@ -103,8 +103,18 @@ app.whenReady().then(async () => {
       } catch (e) {
         mainWindow.webContents.send('download:error', { id: '__init__', error: String(e) })
       }
-    })
-  }
+    } else if (store.get('autoCheckUpdates')) {
+      try {
+        await checkAndUpdate((progress) => {
+          if (!mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('binary:progress', progress)
+          }
+        })
+      } catch (e) {
+        console.error('Auto check updates failed:', e)
+      }
+    }
+  })
 
   // Init clipboard watcher from settings
   if (store.get('clipboardWatcher')) {
