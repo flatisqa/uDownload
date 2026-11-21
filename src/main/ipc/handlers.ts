@@ -290,48 +290,82 @@ export function registerIpcHandlers(mainWindow: BrowserWindow): void {
           targetOutputDir = defaultBaseDir
         }
 
-        const sanitized = title.replace(/[\\/:*?"<>|]/g, '_').trim()
+        if (!fs.existsSync(targetOutputDir)) {
+          return { exists: false, isDirectory: false, path: '', name: '' }
+        }
+
+        const audioExts = new Set(['opus', 'mp3', 'flac', 'aac', 'm4a', 'wav', 'ogg'])
+        const videoExts = new Set(['mp4', 'mkv', 'webm', 'mov'])
+        const allowedExts = format === 'audio' ? audioExts : new Set([...videoExts, ...audioExts])
+
+        const normalize = (s: string): string =>
+          s
+            .toLowerCase()
+            .replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, '')
+            .replace(/\[[a-zA-Z0-9_-]{11}\]/g, '')
+            .replace(/[\s\-_/\\:*?"<>|｜⧸⧹：？＊”＜＞_]+/g, ' ')
+            .trim()
+
+        const normTitle = normalize(title)
+        if (!normTitle) {
+          return { exists: false, isDirectory: false, path: '', name: '' }
+        }
+
+        const entries = fs.readdirSync(targetOutputDir)
+
         if (isPlaylistOrAlbum) {
-          // If targetOutputDir already points to the album/playlist directory, check it directly
-          let dirPath = path.join(targetOutputDir, sanitized)
+          // 1. Direct check if targetOutputDir itself is the album directory and has files
           if (
-            path.basename(targetOutputDir).toLowerCase() === sanitized.toLowerCase() &&
-            fs.existsSync(targetOutputDir)
+            path.basename(targetOutputDir).toLowerCase() === title.toLowerCase() ||
+            normalize(path.basename(targetOutputDir)) === normTitle
           ) {
-            dirPath = targetOutputDir
+            const innerFiles = fs.readdirSync(targetOutputDir)
+            if (innerFiles.length > 0) {
+              return {
+                exists: true,
+                isDirectory: true,
+                path: targetOutputDir,
+                name: path.basename(targetOutputDir)
+              }
+            }
           }
 
-          if (fs.existsSync(dirPath)) {
-            const stats = fs.statSync(dirPath)
-            if (stats.isDirectory()) {
-              const files = fs.readdirSync(dirPath)
-              if (files.length > 0) {
-                return {
-                  exists: true,
-                  isDirectory: true,
-                  path: dirPath,
-                  name: path.basename(dirPath)
+          // 2. Scan subdirectories in targetOutputDir
+          for (const entry of entries) {
+            const full = path.join(targetOutputDir, entry)
+            try {
+              const st = fs.statSync(full)
+              if (st.isDirectory() && normalize(entry) === normTitle) {
+                const inner = fs.readdirSync(full)
+                if (inner.length > 0) {
+                  return { exists: true, isDirectory: true, path: full, name: entry }
                 }
               }
+            } catch {
+              // Ignore inaccessible entries
             }
           }
         } else {
-          const audioExts = ['opus', 'mp3', 'flac', 'aac', 'm4a', 'wav', 'ogg']
-          const videoExts = ['mp4', 'mkv', 'webm', 'mov']
-          const checkExts = format === 'audio' ? audioExts : [...videoExts, ...audioExts]
+          // Single file check: scan files in targetOutputDir
+          for (const entry of entries) {
+            const full = path.join(targetOutputDir, entry)
+            try {
+              const st = fs.statSync(full)
+              if (st.isDirectory()) continue
 
-          for (const ext of checkExts) {
-            const filePath = path.join(targetOutputDir, `${sanitized}.${ext}`)
-            if (fs.existsSync(filePath)) {
-              return {
-                exists: true,
-                isDirectory: false,
-                path: filePath,
-                name: `${sanitized}.${ext}`
+              const ext = path.extname(entry).slice(1).toLowerCase()
+              if (!allowedExts.has(ext)) continue
+
+              const base = path.basename(entry, path.extname(entry))
+              if (normalize(base) === normTitle) {
+                return { exists: true, isDirectory: false, path: full, name: entry }
               }
+            } catch {
+              // Ignore inaccessible entries
             }
           }
         }
+
         return { exists: false, isDirectory: false, path: '', name: '' }
       } catch {
         return { exists: false, isDirectory: false, path: '', name: '' }
